@@ -3,6 +3,22 @@ name: Build the flutter version of the RustDesk
 on:
   workflow_call:
     inputs:
+      custom-repository:
+        description: Repository containing the custom source files
+        type: string
+        default: ""
+      custom-ref:
+        description: Branch, tag, or commit containing the custom source files
+        type: string
+        default: ""
+      source-repository:
+        description: Repository containing the main RustDesk source
+        type: string
+        default: ""
+      source-ref:
+        description: Branch, tag, or commit to build
+        type: string
+        default: ""
       upload-artifact:
         type: boolean
         default: true
@@ -63,7 +79,15 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          submodules: recursive
+          repository: ${{ inputs.custom-repository || github.repository }}
+          ref: ${{ inputs.custom-ref || github.ref }}
+          fetch-depth: 1
+
+      - name: Prepare syscc build source
+        uses: ./.github/actions/apply-syscc-overrides
+        with:
+          source-repository: ${{ inputs.source-repository || github.repository }}
+          source-ref: ${{ inputs.source-ref || github.ref }}
 
       - name: Install Syft
         uses: anchore/sbom-action/download-syft@v0
@@ -84,6 +108,11 @@ jobs:
 
   generate-bridge:
     uses: ./.github/workflows/bridge.yml
+    with:
+      custom-repository: ${{ inputs.custom-repository || github.repository }}
+      custom-ref: ${{ inputs.custom-ref || github.ref }}
+      source-repository: ${{ inputs.source-repository || github.repository }}
+      source-ref: ${{ inputs.source-ref || github.ref }}
 
   build-RustDeskTempTopMostWindow:
     uses: ./.github/workflows/third-party-RustDeskTempTopMostWindow.yml
@@ -144,6 +173,16 @@ jobs:
 
       - name: Checkout source code
         uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.custom-repository || github.repository }}
+          ref: ${{ inputs.custom-ref || github.ref }}
+          fetch-depth: 1
+
+      - name: Prepare syscc build source
+        uses: ./.github/actions/apply-syscc-overrides
+        with:
+          source-repository: ${{ inputs.source-repository || github.repository }}
+          source-ref: ${{ inputs.source-ref || github.ref }}
 
       - name: Restore bridge files
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -482,7 +521,15 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          submodules: recursive
+          repository: ${{ inputs.custom-repository || github.repository }}
+          ref: ${{ inputs.custom-ref || github.ref }}
+          fetch-depth: 1
+
+      - name: Prepare syscc build source
+        uses: ./.github/actions/apply-syscc-overrides
+        with:
+          source-repository: ${{ inputs.source-repository || github.repository }}
+          source-ref: ${{ inputs.source-ref || github.ref }}
 
       - name: Install LLVM and Clang
         uses: rustdesk-org/install-llvm-action-32bit@6aa7d9ad3df84dff01cd4596dd0fc880a7f47fce # no release tag; commit 2026-05-26
@@ -633,7 +680,15 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          submodules: recursive
+          repository: ${{ inputs.custom-repository || github.repository }}
+          ref: ${{ inputs.custom-ref || github.ref }}
+          fetch-depth: 1
+
+      - name: Prepare syscc build source
+        uses: ./.github/actions/apply-syscc-overrides
+        with:
+          source-repository: ${{ inputs.source-repository || github.repository }}
+          source-ref: ${{ inputs.source-ref || github.ref }}
 
       - name: Install flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
@@ -760,7 +815,15 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          submodules: recursive
+          repository: ${{ inputs.custom-repository || github.repository }}
+          ref: ${{ inputs.custom-ref || github.ref }}
+          fetch-depth: 1
+
+      - name: Prepare syscc build source
+        uses: ./.github/actions/apply-syscc-overrides
+        with:
+          source-repository: ${{ inputs.source-repository || github.repository }}
+          source-ref: ${{ inputs.source-ref || github.ref }}
 
       - name: Import the codesign cert
         if: env.MACOS_P12_BASE64 != null
@@ -1096,7 +1159,15 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          submodules: recursive
+          repository: ${{ inputs.custom-repository || github.repository }}
+          ref: ${{ inputs.custom-ref || github.ref }}
+          fetch-depth: 1
+
+      - name: Prepare syscc build source
+        uses: ./.github/actions/apply-syscc-overrides
+        with:
+          source-repository: ${{ inputs.source-repository || github.repository }}
+          source-ref: ${{ inputs.source-ref || github.ref }}
 
       - name: Install flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
@@ -1369,6 +1440,9 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
+          repository: ${{ inputs.source-repository || github.repository }}
+          ref: ${{ inputs.source-ref || github.ref }}
+          fetch-depth: 1
           submodules: recursive
 
       - name: Install flutter
@@ -1536,7 +1610,15 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          submodules: recursive
+          repository: ${{ inputs.custom-repository || github.repository }}
+          ref: ${{ inputs.custom-ref || github.ref }}
+          fetch-depth: 1
+
+      - name: Prepare syscc build source
+        uses: ./.github/actions/apply-syscc-overrides
+        with:
+          source-repository: ${{ inputs.source-repository || github.repository }}
+          source-ref: ${{ inputs.source-ref || github.ref }}
 
       - name: Set Swap Space
         uses: pierotofy/set-swap-space@49819abfb41bd9b44fb781159c033dba90353a7c # v1.0
@@ -1862,7 +1944,15 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          submodules: recursive
+          repository: ${{ inputs.custom-repository || github.repository }}
+          ref: ${{ inputs.custom-ref || github.ref }}
+          fetch-depth: 1
+
+      - name: Prepare syscc build source
+        uses: ./.github/actions/apply-syscc-overrides
+        with:
+          source-repository: ${{ inputs.source-repository || github.repository }}
+          source-ref: ${{ inputs.source-ref || github.ref }}
 
       - name: Set Swap Space
         uses: pierotofy/set-swap-space@49819abfb41bd9b44fb781159c033dba90353a7c # v1.0
@@ -2142,7 +2232,15 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          submodules: recursive
+          repository: ${{ inputs.custom-repository || github.repository }}
+          ref: ${{ inputs.custom-ref || github.ref }}
+          fetch-depth: 1
+
+      - name: Prepare syscc build source
+        uses: ./.github/actions/apply-syscc-overrides
+        with:
+          source-repository: ${{ inputs.source-repository || github.repository }}
+          source-ref: ${{ inputs.source-ref || github.ref }}
 
       - name: Modify vcpkg.json for armv7
         if: matrix.job.vcpkg-triplet == 'arm-linux'
@@ -2359,6 +2457,9 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
+          repository: ${{ inputs.source-repository || github.repository }}
+          ref: ${{ inputs.source-ref || github.ref }}
+          fetch-depth: 1
           submodules: recursive
 
       - name: Download Binary
@@ -2433,6 +2534,9 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
+          repository: ${{ inputs.source-repository || github.repository }}
+          ref: ${{ inputs.source-ref || github.ref }}
+          fetch-depth: 1
           submodules: recursive
 
       - name: Download Binary
@@ -2494,6 +2598,9 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
+          repository: ${{ inputs.source-repository || github.repository }}
+          ref: ${{ inputs.source-ref || github.ref }}
+          fetch-depth: 1
           submodules: recursive
 
       - name: Prepare env

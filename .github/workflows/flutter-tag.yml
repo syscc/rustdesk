@@ -1,7 +1,38 @@
-name: Flutter Tag Build
+name: Flutter Tag Build syscc
 
 on:
   workflow_dispatch:
+    inputs:
+      source-repository:
+        description: Repository containing the main RustDesk source
+        required: true
+        default: syscc/rustdesk
+        type: string
+      source-ref:
+        description: Branch, tag, or commit to build
+        required: true
+        default: refs/heads/master
+        type: string
+      custom-repository:
+        description: Repository containing the custom source files
+        required: true
+        default: syscc/rustdesk
+        type: string
+      custom-ref:
+        description: Branch, tag, or commit containing the custom source files
+        required: true
+        default: refs/heads/main
+        type: string
+      upload-artifact:
+        description: Upload build artifacts and publish the configured release files
+        required: true
+        default: true
+        type: boolean
+      upload-tag:
+        description: Release tag used when artifacts are published
+        required: true
+        default: nightly
+        type: string
   push:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
@@ -9,10 +40,17 @@ on:
       - 'v[0-9]+.[0-9]+.[0-9]+-[0-9]+'
       - '[0-9]+.[0-9]+.[0-9]+-[0-9]+'
 
+permissions:
+  contents: write
+
 jobs:
   run-flutter-tag-build:
     uses: ./.github/workflows/flutter-build.yml
     secrets: inherit
     with:
-      upload-artifact: true
-      upload-tag: ${{ github.ref_name }}
+      source-repository: ${{ github.event_name == 'push' && github.ref_type == 'tag' && 'rustdesk/rustdesk' || github.repository }}
+      source-ref: ${{ github.event_name == 'push' && github.ref || inputs.source-ref }}
+      custom-repository: ${{ github.repository }}
+      custom-ref: ${{ github.event_name == 'push' && 'refs/heads/main' || inputs.custom-ref }}
+      upload-artifact: ${{ github.event_name == 'push' || inputs.upload-artifact }}
+      upload-tag: ${{ github.event_name == 'push' && github.ref_type == 'tag' && github.ref_name || 'nightly' }}

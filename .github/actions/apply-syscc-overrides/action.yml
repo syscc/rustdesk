@@ -1,0 +1,70 @@
+name: Apply syscc source overrides
+description: Build a source checkout with selected files from the custom branch
+
+inputs:
+  source-repository:
+    description: Repository containing the main RustDesk source
+    required: true
+  source-ref:
+    description: Branch, tag, or commit to build
+    required: true
+
+outputs:
+  custom-sha:
+    description: Commit containing the applied source overrides
+    value: ${{ steps.save-custom-source.outputs.commit }}
+  source-sha:
+    description: Commit containing the main RustDesk source
+    value: ${{ steps.apply-custom-source.outputs.commit }}
+
+runs:
+  using: composite
+  steps:
+    - name: Save custom source files
+      id: save-custom-source
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        test -f libs/hbb_common/Cargo.toml
+        test -f libs/hbb_common/src/lib.rs
+        test -f src/common.rs
+
+        override_dir="$RUNNER_TEMP/syscc-overrides"
+        rm -rf "$override_dir"
+        mkdir -p "$override_dir/libs"
+        cp -R libs/hbb_common "$override_dir/libs/hbb_common"
+        cp src/common.rs "$override_dir/common.rs"
+
+        custom_sha="$(git rev-parse HEAD)"
+        echo "commit=${custom_sha}" >> "$GITHUB_OUTPUT"
+        echo "Applied libs/hbb_common and src/common.rs from ${custom_sha}"
+
+    - name: Checkout upstream RustDesk source
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      with:
+        repository: ${{ inputs.source-repository }}
+        ref: ${{ inputs.source-ref }}
+        fetch-depth: 1
+        submodules: recursive
+        persist-credentials: false
+
+    - name: Apply custom source files
+      id: apply-custom-source
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        override_dir="$RUNNER_TEMP/syscc-overrides"
+        test -f "$override_dir/libs/hbb_common/Cargo.toml"
+        test -f "$override_dir/libs/hbb_common/src/lib.rs"
+        test -f "$override_dir/common.rs"
+
+        rm -rf libs/hbb_common
+        cp -R "$override_dir/libs/hbb_common" libs/hbb_common
+        cp "$override_dir/common.rs" src/common.rs
+
+        source_sha="$(git rev-parse HEAD)"
+        echo "commit=${source_sha}" >> "$GITHUB_OUTPUT"
+        echo "Applied custom source files from ${{ steps.save-custom-source.outputs.commit }}"
+        echo "Building ${{ inputs.source-repository }} at ${{ inputs.source-ref }} (${source_sha})"

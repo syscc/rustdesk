@@ -1,0 +1,86 @@
+name: Sync upstream master
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+
+concurrency:
+  group: sync-upstream-master
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sync workflow
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Fast-forward master from upstream
+        id: sync
+        shell: bash
+        env:
+          UPSTREAM_REPOSITORY: https://github.com/rustdesk/rustdesk.git
+        run: |
+          set -euo pipefail
+
+          git remote add upstream "$UPSTREAM_REPOSITORY"
+          git fetch --no-tags upstream refs/heads/master
+          upstream_sha="$(git rev-parse FETCH_HEAD)"
+
+          current_sha="$(git ls-remote origin refs/heads/master | awk 'NR == 1 { print $1 }')"
+          if [[ -z "$current_sha" ]]; then
+            echo "No origin/master exists; creating it at ${upstream_sha}."
+            git push origin "${upstream_sha}:refs/heads/master"
+            echo "updated=true" >> "$GITHUB_OUTPUT"
+            echo "previous_sha=" >> "$GITHUB_OUTPUT"
+            echo "upstream_sha=${upstream_sha}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$current_sha" == "$upstream_sha" ]]; then
+            echo "origin/master is already at ${upstream_sha}."
+            echo "updated=false" >> "$GITHUB_OUTPUT"
+            echo "previous_sha=${current_sha}" >> "$GITHUB_OUTPUT"
+            echo "upstream_sha=${upstream_sha}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git fetch origin "refs/heads/master:refs/remotes/origin/master"
+          if ! git merge-base --is-ancestor "$current_sha" "$upstream_sha"; then
+            echo "::error::origin/master is not an ancestor of upstream/master."
+            echo "origin/master: ${current_sha}"
+            echo "upstream/master: ${upstream_sha}"
+            exit 1
+          fi
+
+          git push origin "${upstream_sha}:refs/heads/master"
+          echo "updated=true" >> "$GITHUB_OUTPUT"
+          echo "previous_sha=${current_sha}" >> "$GITHUB_OUTPUT"
+          echo "upstream_sha=${upstream_sha}" >> "$GITHUB_OUTPUT"
+
+      - name: Start master build
+        if: steps.sync.outputs.updated == 'true'
+        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
+        with:
+          script: |
+            const repository = `${context.repo.owner}/${context.repo.repo}`;
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'flutter-tag.yml',
+              ref: 'main',
+              inputs: {
+                'source-repository': repository,
+                'source-ref': 'refs/heads/master',
+                'custom-repository': repository,
+                'custom-ref': 'refs/heads/main',
+                'upload-artifact': 'true',
+                'upload-tag': 'nightly'
+              }
+            });
