@@ -54,15 +54,16 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          repository: ${{ inputs.custom-repository || github.repository }}
-          ref: ${{ inputs.custom-ref || github.ref }}
+          repository: ${{ inputs.source-repository || github.repository }}
+          ref: ${{ inputs.source-ref || github.ref }}
           fetch-depth: 1
+          submodules: recursive
 
       - name: Prepare syscc build source
-        uses: ./.github/actions/apply-syscc-overrides
+        uses: syscc/rustdesk/.github/actions/apply-syscc-overrides@main
         with:
-          source-repository: ${{ inputs.source-repository || github.repository }}
-          source-ref: ${{ inputs.source-ref || github.ref }}
+          custom-repository: ${{ inputs.custom-repository || github.repository }}
+          custom-ref: ${{ inputs.custom-ref || 'refs/heads/main' }}
       - name: Install prerequisites
         run: |
           sudo apt-get install ca-certificates -y

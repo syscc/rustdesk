@@ -3,25 +3,10 @@ name: Flutter Tag Build syscc
 on:
   workflow_dispatch:
     inputs:
-      source-repository:
-        description: Repository containing the main RustDesk source
-        required: true
-        default: syscc/rustdesk
-        type: string
       source-ref:
-        description: Branch, tag, or commit to build
+        description: Branch, tag, or commit to build from your master mirror
         required: true
         default: refs/heads/master
-        type: string
-      custom-repository:
-        description: Repository containing the custom source files
-        required: true
-        default: syscc/rustdesk
-        type: string
-      custom-ref:
-        description: Branch, tag, or commit containing the custom source files
-        required: true
-        default: refs/heads/main
         type: string
       upload-artifact:
         description: Upload build artifacts and publish the configured release files
@@ -48,9 +33,9 @@ jobs:
     uses: ./.github/workflows/flutter-build.yml
     secrets: inherit
     with:
-      source-repository: ${{ github.event_name == 'push' && github.ref_type == 'tag' && 'rustdesk/rustdesk' || github.repository }}
+      source-repository: ${{ github.repository }}
       source-ref: ${{ github.event_name == 'push' && github.ref || inputs.source-ref }}
       custom-repository: ${{ github.repository }}
-      custom-ref: ${{ github.event_name == 'push' && 'refs/heads/main' || inputs.custom-ref }}
+      custom-ref: refs/heads/main
       upload-artifact: ${{ github.event_name == 'push' || inputs.upload-artifact }}
       upload-tag: ${{ github.event_name == 'push' && github.ref_type == 'tag' && github.ref_name || 'nightly' }}

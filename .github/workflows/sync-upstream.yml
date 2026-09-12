@@ -64,6 +64,30 @@ jobs:
           echo "previous_sha=${current_sha}" >> "$GITHUB_OUTPUT"
           echo "upstream_sha=${upstream_sha}" >> "$GITHUB_OUTPUT"
 
+      - name: Sync upstream version tags
+        shell: bash
+        env:
+          UPSTREAM_REPOSITORY: https://github.com/rustdesk/rustdesk.git
+        run: |
+          set -euo pipefail
+
+          tag_refspecs=()
+          while IFS=$'\t' read -r _ tag_ref; do
+            tag_name="${tag_ref#refs/tags/}"
+            if [[ "$tag_name" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$ ]]; then
+              tag_refspecs+=("${tag_ref}:${tag_ref}")
+            fi
+          done < <(git ls-remote --tags --refs "$UPSTREAM_REPOSITORY")
+
+          if [[ "${#tag_refspecs[@]}" -eq 0 ]]; then
+            echo "No upstream version tags found."
+            exit 0
+          fi
+
+          git fetch upstream "${tag_refspecs[@]}"
+          git push origin "${tag_refspecs[@]}"
+          echo "Synchronized ${#tag_refspecs[@]} upstream version tags."
+
       - name: Start master build
         if: steps.sync.outputs.updated == 'true'
         uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
@@ -73,13 +97,11 @@ jobs:
             await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              workflow_id: 'flutter-tag.yml',
+              workflow_id: 'flutter-tag-syscc.yml',
               ref: 'main',
               inputs: {
                 'source-repository': repository,
                 'source-ref': 'refs/heads/master',
-                'custom-repository': repository,
-                'custom-ref': 'refs/heads/main',
                 'upload-artifact': 'true',
                 'upload-tag': 'nightly'
               }
