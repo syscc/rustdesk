@@ -88,6 +88,33 @@ jobs:
           git push origin "${tag_refspecs[@]}"
           echo "Synchronized ${#tag_refspecs[@]} upstream version tags."
 
+      - name: Sync upstream nightly tag
+        shell: bash
+        env:
+          UPSTREAM_REPOSITORY: https://github.com/rustdesk/rustdesk.git
+        run: |
+          set -euo pipefail
+
+          upstream_nightly_sha="$(git ls-remote --tags --refs "$UPSTREAM_REPOSITORY" refs/tags/nightly | awk 'NR == 1 { print $1 }')"
+          if [[ -z "$upstream_nightly_sha" ]]; then
+            echo "No upstream nightly tag found."
+            exit 0
+          fi
+
+          current_nightly_sha="$(git ls-remote --tags --refs origin refs/tags/nightly | awk 'NR == 1 { print $1 }')"
+          if [[ "$current_nightly_sha" == "$upstream_nightly_sha" ]]; then
+            echo "origin/nightly is already at ${upstream_nightly_sha}."
+            exit 0
+          fi
+
+          git fetch --force upstream "refs/tags/nightly:refs/tags/nightly"
+          if [[ -z "$current_nightly_sha" ]]; then
+            git push origin "refs/tags/nightly:refs/tags/nightly"
+          else
+            git push --force-with-lease="refs/tags/nightly:${current_nightly_sha}" origin "refs/tags/nightly:refs/tags/nightly"
+          fi
+          echo "Synchronized upstream nightly tag ${upstream_nightly_sha}."
+
       - name: Start master build
         if: steps.sync.outputs.updated == 'true'
         uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
