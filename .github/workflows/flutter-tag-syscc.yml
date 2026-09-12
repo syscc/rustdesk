@@ -35,7 +35,6 @@ jobs:
     with:
       source-repository: ${{ github.repository }}
       source-ref: ${{ github.event_name == 'push' && github.ref || inputs.source-ref }}
-      custom-repository: ${{ github.repository }}
-      custom-ref: refs/heads/main
+      apply-syscc-patches: true
       upload-artifact: ${{ github.event_name == 'push' || inputs.upload-artifact }}
       upload-tag: ${{ github.event_name == 'push' && github.ref_type == 'tag' && github.ref_name || 'nightly' }}

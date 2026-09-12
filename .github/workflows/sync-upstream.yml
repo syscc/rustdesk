@@ -120,14 +120,12 @@ jobs:
         uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
         with:
           script: |
-            const repository = `${context.repo.owner}/${context.repo.repo}`;
             await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'flutter-tag-syscc.yml',
               ref: 'main',
               inputs: {
-                'source-repository': repository,
                 'source-ref': 'refs/heads/master',
                 'upload-artifact': 'true',
                 'upload-tag': 'nightly'

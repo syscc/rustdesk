@@ -1,57 +1,29 @@
-name: Apply syscc source overrides
-description: Replace only the selected source files with versions from main
+name: Apply syscc source changes
+description: Apply only syscc custom changes to the checked-out upstream source
 
 inputs:
-  custom-repository:
-    description: Repository containing the custom source files
-    required: true
-  custom-ref:
-    description: Branch, tag, or commit containing the custom source files
-    required: true
-
-outputs:
-  custom-sha:
-    description: Commit containing the applied source overrides
-    value: ${{ steps.save-custom-source.outputs.commit }}
+  enabled:
+    description: Apply syscc patches to the checked-out source
+    required: false
+    default: 'false'
 
 runs:
   using: composite
   steps:
-    - name: Checkout custom source files
-      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      with:
-        repository: ${{ inputs.custom-repository }}
-        ref: ${{ inputs.custom-ref }}
-        path: .syscc-custom-source
-        fetch-depth: 1
-        sparse-checkout: |
-          /libs/hbb_common/
-          /src/common.rs
-        sparse-checkout-cone-mode: false
-
-    - name: Apply custom source files
-      id: save-custom-source
+    - name: Apply syscc source patches
+      if: inputs.enabled == 'true'
       shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
       run: |
         set -euo pipefail
 
-        custom_source_dir=".syscc-custom-source"
-        test -f "${custom_source_dir}/libs/hbb_common/Cargo.toml"
-        test -f "${custom_source_dir}/libs/hbb_common/src/lib.rs"
-        test -f "${custom_source_dir}/src/common.rs"
+        test -d libs/hbb_common
+        test -f src/common.rs
+        test -f "${ACTION_PATH}/apply.py"
 
-        override_dir="$RUNNER_TEMP/syscc-overrides"
-        rm -rf "$override_dir"
-        mkdir -p "$override_dir/libs"
-        cp -R "${custom_source_dir}/libs/hbb_common" "$override_dir/libs/hbb_common"
-        cp "${custom_source_dir}/src/common.rs" "$override_dir/common.rs"
-
-        custom_sha="$(git -C "$custom_source_dir" rev-parse HEAD)"
-        echo "commit=${custom_sha}" >> "$GITHUB_OUTPUT"
-
-        rm -rf "$custom_source_dir"
-        rm -rf libs/hbb_common
-        cp -R "$override_dir/libs/hbb_common" libs/hbb_common
-        cp "$override_dir/common.rs" src/common.rs
-
-        echo "Applied only libs/hbb_common and src/common.rs from ${custom_sha}"
+        if command -v python3 >/dev/null 2>&1; then
+          python3 "${ACTION_PATH}/apply.py"
+        else
+          python "${ACTION_PATH}/apply.py"
+        fi

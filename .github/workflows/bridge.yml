@@ -5,14 +5,6 @@ name: Build flutter-rust-bridge
 on:
   workflow_call:
     inputs:
-      custom-repository:
-        description: Repository containing the custom source files
-        type: string
-        default: ""
-      custom-ref:
-        description: Branch, tag, or commit containing the custom source files
-        type: string
-        default: ""
       source-repository:
         description: Repository containing the main RustDesk source
         type: string
@@ -21,6 +13,10 @@ on:
         description: Branch, tag, or commit to build
         type: string
         default: ""
+      apply-syscc-patches:
+        description: Apply syscc custom patches to the checked-out source
+        type: boolean
+        default: false
 
 env:
   CARGO_EXPAND_VERSION: "1.0.95"
@@ -62,8 +58,7 @@ jobs:
       - name: Prepare syscc build source
         uses: syscc/rustdesk/.github/actions/apply-syscc-overrides@main
         with:
-          custom-repository: ${{ inputs.custom-repository || github.repository }}
-          custom-ref: ${{ inputs.custom-ref || 'refs/heads/main' }}
+          enabled: ${{ inputs.apply-syscc-patches }}
       - name: Install prerequisites
         run: |
           sudo apt-get install ca-certificates -y
