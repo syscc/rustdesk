@@ -1,0 +1,40 @@
+name: Flutter Tag Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      source-ref:
+        description: Branch, tag, or commit to build from rustdesk/rustdesk
+        required: true
+        default: refs/heads/master
+        type: string
+      upload-artifact:
+        description: Upload build artifacts and publish the configured release files
+        required: true
+        default: true
+        type: boolean
+      upload-tag:
+        description: Release tag used when artifacts are published
+        required: true
+        default: nightly
+        type: string
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - '[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-[0-9]+'
+      - '[0-9]+.[0-9]+.[0-9]+-[0-9]+'
+
+permissions:
+  contents: write
+
+jobs:
+  run-flutter-tag-build:
+    uses: ./.github/workflows/flutter-build.yml
+    secrets: inherit
+    with:
+      source-repository: rustdesk/rustdesk
+      source-ref: ${{ github.event_name == 'push' && github.ref || inputs.source-ref }}
+      apply-syscc-patches: true
+      upload-artifact: ${{ github.event_name == 'push' || inputs.upload-artifact }}
+      upload-tag: ${{ github.event_name == 'push' && github.ref_type == 'tag' && github.ref_name || 'nightly' }}

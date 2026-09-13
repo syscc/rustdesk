@@ -4,15 +4,15 @@ on:
   workflow_call:
     inputs:
       source-repository:
-        description: Repository containing the main RustDesk source
+        description: Repository containing the RustDesk source
         type: string
-        default: ""
+        default: rustdesk/rustdesk
       source-ref:
         description: Branch, tag, or commit to build
         type: string
-        default: ""
+        default: refs/heads/master
       apply-syscc-patches:
-        description: Apply syscc custom patches to the checked-out source
+        description: Apply syscc custom changes to the checked-out source
         type: boolean
         default: false
       upload-artifact:
@@ -255,7 +255,7 @@ jobs:
         if: ${{ matrix.job.arch == 'x86_64' }}
         shell: bash
         run: |
-          cp .github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff $(dirname $(dirname $(which flutter)))
+          cp "$SYSCC_BUILD_ASSETS/flutter_3.24.4_dropdown_menu_enableFilter.diff" $(dirname $(dirname $(which flutter)))
           cd $(dirname $(dirname $(which flutter)))
           if [[ "3.24.5" == ${{env.FLUTTER_VERSION}} ]]; then
             git apply flutter_3.24.4_dropdown_menu_enableFilter.diff
@@ -267,7 +267,7 @@ jobs:
         # `flutter build` then runs `pub get`, regenerating pubspec.lock for the bumped deps.
         if: ${{ matrix.job.arch == 'aarch64' }}
         shell: bash
-        run: bash .github/patches/apply_flutter_3.44_source_patches.sh
+        run: bash "$SYSCC_BUILD_ASSETS/apply_flutter_3.44_source_patches.sh"
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
@@ -704,7 +704,7 @@ jobs:
         run: |
           cd $(dirname $(dirname $(which flutter)))
           if [[ "3.24.5" == ${{env.FLUTTER_VERSION}} ]]; then
-            git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+            git apply "$SYSCC_BUILD_ASSETS/flutter_3.24.4_dropdown_menu_enableFilter.diff"
           fi
 
       - name: Setup vcpkg with Github Actions binary cache
@@ -893,7 +893,7 @@ jobs:
         run: |
           cd $(dirname $(dirname $(which flutter)))
           if [[ "3.24.5" == ${{env.FLUTTER_VERSION}} ]]; then
-            git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+            git apply "$SYSCC_BUILD_ASSETS/flutter_3.24.4_dropdown_menu_enableFilter.diff"
           fi
 
       - name: Workaround for flutter issue
@@ -992,7 +992,7 @@ jobs:
           # start sign the rustdesk.app and dmg
           rm -rf *.dmg || true
           # the identity secret carries its own shell quoting, so expand it inline like the dmg codesign below
-          bash ./.github/scripts/sign-macos-app.sh \
+          bash "$SYSCC_BUILD_ASSETS/sign-macos-app.sh" \
             ./flutter/build/macos/Build/Products/Release/RustDesk.app \
             ${{ secrets.MACOS_CODESIGN_IDENTITY }} \
             ./flutter/macos/Runner/Release.entitlements
@@ -1183,7 +1183,7 @@ jobs:
         run: |
           cd $(dirname $(dirname $(which flutter)))
           if [[ "3.24.5" == ${{env.ANDROID_FLUTTER_VERSION}} ]]; then
-            git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+            git apply "$SYSCC_BUILD_ASSETS/flutter_3.24.4_dropdown_menu_enableFilter.diff"
           fi
 
       - uses: nttld/setup-ndk@ed92fe6cadad69be94a966a7ee3271275e62f779 # v1
@@ -1449,6 +1449,11 @@ jobs:
           fetch-depth: 1
           submodules: recursive
 
+      - name: Prepare syscc build helpers
+        uses: syscc/rustdesk/.github/actions/apply-syscc-overrides@main
+        with:
+          enabled: ${{ inputs.apply-syscc-patches }}
+
       - name: Install flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
@@ -1459,7 +1464,7 @@ jobs:
         run: |
           cd $(dirname $(dirname $(which flutter)))
           if [[ "3.24.5" == ${{env.ANDROID_FLUTTER_VERSION}} ]]; then
-            git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+            git apply "$SYSCC_BUILD_ASSETS/flutter_3.24.4_dropdown_menu_enableFilter.diff"
           fi
 
       - name: Restore bridge files
@@ -1833,7 +1838,7 @@ jobs:
                   pushd /opt/flutter
                 ;;
               esac
-              git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+              git apply "$SYSCC_BUILD_ASSETS/flutter_3.24.4_dropdown_menu_enableFilter.diff"
               popd
             fi
 
@@ -2133,7 +2138,7 @@ jobs:
 
             if [[ "3.24.5" == ${{ env.FLUTTER_VERSION }} ]]; then
               pushd /opt/flutter
-              git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+              git apply "$SYSCC_BUILD_ASSETS/flutter_3.24.4_dropdown_menu_enableFilter.diff"
               popd
             fi
 
@@ -2607,6 +2612,11 @@ jobs:
           fetch-depth: 1
           submodules: recursive
 
+      - name: Prepare syscc build helpers
+        uses: syscc/rustdesk/.github/actions/apply-syscc-overrides@main
+        with:
+          enabled: ${{ inputs.apply-syscc-patches }}
+
       - name: Prepare env
         run: |
           sudo apt-get update -y
@@ -2623,7 +2633,7 @@ jobs:
         run: |
           cd $(dirname $(dirname $(which flutter)))
           if [[ "3.24.5" == ${{env.FLUTTER_VERSION}} ]]; then
-            git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+            git apply "$SYSCC_BUILD_ASSETS/flutter_3.24.4_dropdown_menu_enableFilter.diff"
           fi
 
       - name: Patch sources for Flutter 3.44 web
@@ -2632,7 +2642,7 @@ jobs:
         shell: bash
         run: |
           if [[ "${{ env.FLUTTER_VERSION }}" == 3.44.* ]]; then
-            bash .github/patches/apply_flutter_3.44_web_patches.sh
+            bash "$SYSCC_BUILD_ASSETS/apply_flutter_3.44_web_patches.sh"
           fi
 
       # https://rustdesk.com/docs/en/dev/build/web/

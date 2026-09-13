@@ -6,15 +6,15 @@ on:
   workflow_call:
     inputs:
       source-repository:
-        description: Repository containing the main RustDesk source
+        description: Repository containing the RustDesk source
         type: string
-        default: ""
+        default: rustdesk/rustdesk
       source-ref:
         description: Branch, tag, or commit to build
         type: string
-        default: ""
+        default: refs/heads/master
       apply-syscc-patches:
-        description: Apply syscc custom patches to the checked-out source
+        description: Apply syscc custom changes to the checked-out source
         type: boolean
         default: false
 
@@ -114,7 +114,7 @@ jobs:
           else
             # Flutter 3.44 bridge for Windows arm64: match that build's source/pubspec state so the
             # generated *.freezed.dart compiles against the same Flutter/freezed it resolves.
-            bash .github/patches/apply_flutter_3.44_source_patches.sh
+            bash "$SYSCC_BUILD_ASSETS/apply_flutter_3.44_source_patches.sh"
           fi
           pushd flutter && flutter pub get && popd
 

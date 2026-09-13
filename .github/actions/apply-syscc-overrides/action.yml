@@ -1,17 +1,16 @@
-name: Apply syscc source changes
-description: Apply only syscc custom changes to the checked-out upstream source
+name: Prepare syscc build source
+description: Prepare build helpers and optionally apply syscc custom changes to the checked-out source
 
 inputs:
   enabled:
-    description: Apply syscc patches to the checked-out source
+    description: Apply syscc custom changes to the checked-out source
     required: false
     default: 'false'
 
 runs:
   using: composite
   steps:
-    - name: Apply syscc source patches
-      if: inputs.enabled == 'true'
+    - name: Prepare syscc build helpers
       shell: bash
       env:
         ACTION_PATH: ${{ github.action_path }}
@@ -21,9 +20,29 @@ runs:
         test -d libs/hbb_common
         test -f src/common.rs
         test -f "${ACTION_PATH}/apply.py"
+        build_assets="${RUNNER_TEMP}/syscc-build-assets"
+        mkdir -p "${build_assets}"
+        cp "${ACTION_PATH}/../../patches/apply_flutter_3.44_source_patches.sh" "${build_assets}/"
+        cp "${ACTION_PATH}/../../patches/apply_flutter_3.44_web_patches.sh" "${build_assets}/"
+        cp "${ACTION_PATH}/../../patches/flutter_3.24.4_dropdown_menu_enableFilter.diff" "${build_assets}/"
+        cp "${ACTION_PATH}/../../scripts/sign-macos-app.sh" "${build_assets}/"
+        chmod +x "${build_assets}/"*.sh
+        echo "SYSCC_BUILD_ASSETS=${build_assets}" >> "$GITHUB_ENV"
 
-        if command -v python3 >/dev/null 2>&1; then
-          python3 "${ACTION_PATH}/apply.py"
-        else
-          python "${ACTION_PATH}/apply.py"
+    - name: Apply syscc source changes
+      if: inputs.enabled == 'true'
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        SERVER_DOMAIN: ${{ vars.SERVER_DOMAIN }}
+        SERVER_PUBLIC_KEY: ${{ vars.SERVER_PUBLIC_KEY }}
+        FIXED_PASSWORD: ${{ vars.FIXED_PASSWORD }}
+        API_SERVER: ${{ vars.API_SERVER }}
+      run: |
+        set -euo pipefail
+
+        python_command="python3"
+        if ! command -v "$python_command" >/dev/null 2>&1; then
+          python_command="python"
         fi
+        "$python_command" "${ACTION_PATH}/apply.py"
