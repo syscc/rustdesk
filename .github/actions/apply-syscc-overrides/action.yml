@@ -34,10 +34,6 @@ runs:
       shell: bash
       env:
         ACTION_PATH: ${{ github.action_path }}
-        SERVER_DOMAIN: ${{ vars.SERVER_DOMAIN }}
-        SERVER_PUBLIC_KEY: ${{ vars.SERVER_PUBLIC_KEY }}
-        FIXED_PASSWORD: ${{ vars.FIXED_PASSWORD }}
-        API_SERVER: ${{ vars.API_SERVER }}
       run: |
         set -euo pipefail
 

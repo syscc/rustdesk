@@ -17,7 +17,7 @@
         ↓
 checkout master 或指定 tag
         ↓
-读取 GitHub Repository Variables
+读取 GitHub Repository secrets
         ↓
 执行 .github/actions/apply-syscc-overrides/apply.py
         ↓
@@ -28,18 +28,18 @@ checkout master 或指定 tag
 
 本仓库中的 `apply.py` 不复制 `main` 的 RustDesk 源文件，也不覆盖整个 `libs/hbb_common` 目录；它只对当前 checkout 的上游文件做定向替换。
 
-## GitHub Repository Variables
+## GitHub Repository secrets
 
-在 GitHub 仓库的 **Settings → Secrets and variables → Actions → Variables** 中配置：
+在 GitHub 仓库的 **Settings → Secrets and variables → Actions → Secrets** 中配置：
 
-| Variable | 必填 | 用途 |
+| Secret | 必填 | 用途 |
 | --- | --- | --- |
-| `SERVER_DOMAIN` | 是 | `libs/hbb_common/src/config.rs` 的 rendezvous 服务器域名，例如 `rustdesk.yyej.com` |
+| `SERVER_DOMAIN` | 是 | `libs/hbb_common/src/config.rs` 的 rendezvous 服务器域名 |
 | `SERVER_PUBLIC_KEY` | 是 | rendezvous 服务器公钥 |
 | `FIXED_PASSWORD` | 否 | 固定密码；为空时不写入固定密码配置 |
 | `API_SERVER` | 否 | API 服务器完整地址；为空时保留上游默认 API 地址 |
 
-固定密码会写入构建后的客户端。普通 Repository Variables 不是机密存储；如果密码需要保密，应改用 Actions Secret，并同步调整工作流传参。
+固定密码会写入构建后的客户端。这些值通过 Repository secrets 传入构建流程，不会写入 `main` 源码。固定密码会进入最终客户端，请仅在确有需要时配置。
 
 ## 手动构建
 
