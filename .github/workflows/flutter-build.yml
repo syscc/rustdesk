@@ -1116,12 +1116,15 @@ jobs:
           # notarize the rustdesk-${{ env.VERSION }}.dmg
           rcodesign notary-submit --api-key-path ${{ github.workspace }}/rustdesk.json  --staple rustdesk-${{ env.VERSION }}.dmg
 
-      - name: Rename rustdesk
+      - name: Normalize macOS DMG name
         if: env.UPLOAD_ARTIFACT == 'true'
         run: |
-          for name in rustdesk*??.dmg; do
-              mv "$name" "${name%%.dmg}-${{ matrix.job.arch }}.dmg"
-          done
+          expected="rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.dmg"
+          signed="rustdesk-${{ env.VERSION }}.dmg"
+          if [[ -f "$signed" ]]; then
+            mv "$signed" "$expected"
+          fi
+          test -f "$expected"
 
       - name: Publish DMG package
         if: (env.UPLOAD_ARTIFACT == 'true') && inputs.publish-release
@@ -1132,7 +1135,7 @@ jobs:
           prerelease: true
           tag_name: ${{ env.TAG_NAME }}
           files: |
-            rustdesk*-${{ matrix.job.arch }}.dmg
+            rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.dmg
 
   publish_unsigned:
     env:

@@ -196,6 +196,33 @@ class WorkflowContractTest < Minitest::Test
     end
   end
 
+  def test_macos_dmg_is_normalized_without_duplicate_architecture
+    macos = @build_jobs.fetch('build-for-macOS')
+    create_steps = steps(macos).select { |step| step['name'] == 'create unsigned dmg' }
+    refute_empty create_steps
+    create_steps.each do |step|
+      assert_includes step.fetch('run'), 'rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.dmg'
+    end
+
+    signed_step = steps(macos).find { |step| step['name'] == 'Codesign app and create signed dmg' }
+    refute_nil signed_step
+    assert_includes signed_step.fetch('run'), 'rustdesk-${{ env.VERSION }}.dmg'
+
+    normalize = steps(macos).find { |step| step['name'] == 'Normalize macOS DMG name' }
+    refute_nil normalize
+    script = normalize.fetch('run')
+    assert_includes script, 'expected="rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.dmg"'
+    assert_includes script, 'signed="rustdesk-${{ env.VERSION }}.dmg"'
+    assert_includes script, 'mv "$signed" "$expected"'
+    assert_includes script, 'test -f "$expected"'
+    refute_match(/rustdesk\*\?\?\.dmg/, script)
+
+    publish = steps(macos).find { |step| step['name'] == 'Publish DMG package' }
+    refute_nil publish
+    assert_equal 'rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.dmg',
+                 publish.dig('with', 'files').to_s.strip
+  end
+
   def test_publish_release_false_cannot_enable_a_release_while_uploading_artifacts
     build_inputs = event_config(@build).fetch('workflow_call').fetch('inputs')
     assert_equal true, build_inputs.fetch('publish-release').fetch('default')
