@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 
-ROOT = Path.cwd()
+ROOT = Path(os.environ.get("GITHUB_WORKSPACE", Path.cwd())).resolve()
 SRC_PATH = ROOT / "src/common.rs"
 HBB_CONFIG_PATH = ROOT / "libs/hbb_common/src/config.rs"
 CUSTOM_SETTINGS_MARKER = "// syscc custom settings from repository variables"

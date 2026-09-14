@@ -1,0 +1,154 @@
+name: Set up NASM 2.16.03
+
+description: Install the NASM 2.16.03 toolchain required by the pinned vcpkg baseline
+
+inputs:
+  vcpkg-root:
+    description: Path to the vcpkg checkout whose commit must be verified
+    required: true
+  expected-commit:
+    description: Expected vcpkg checkout commit
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install NASM 2.16.03
+      shell: pwsh
+      env:
+        VCPKG_ROOT_INPUT: ${{ inputs.vcpkg-root }}
+        EXPECTED_COMMIT_INPUT: ${{ inputs.expected-commit }}
+      run: |
+        $ErrorActionPreference = 'Stop'
+
+        $vcpkgRoot = $env:VCPKG_ROOT_INPUT
+        $expectedCommit = $env:EXPECTED_COMMIT_INPUT
+        $gitOutput = & git -C $vcpkgRoot rev-parse HEAD 2>&1
+        $gitExitCode = $LASTEXITCODE
+        if ($gitExitCode -ne 0) {
+          $gitDetail = ($gitOutput | Out-String).Trim()
+          if ([string]::IsNullOrWhiteSpace($gitDetail)) {
+            $gitDetail = 'no diagnostic output'
+          }
+          throw "git rev-parse failed (exit code $gitExitCode): $gitDetail"
+        }
+
+        $actualCommit = ($gitOutput -join "`n").Trim()
+        if (-not [string]::Equals($actualCommit, $expectedCommit, [System.StringComparison]::Ordinal)) {
+          throw 'The vcpkg checkout commit does not match expected-commit.'
+        }
+
+        if ([string]::IsNullOrWhiteSpace($env:RUNNER_TEMP)) {
+          throw 'RUNNER_TEMP is not available.'
+        }
+        if ([string]::IsNullOrWhiteSpace($env:GITHUB_PATH)) {
+          throw 'GITHUB_PATH is not available.'
+        }
+
+        $baseDirectory = Join-Path -Path $env:RUNNER_TEMP -ChildPath 'rustdesk-nasm-2.16.03'
+        $assetDirectory = $baseDirectory
+        if (Test-Path -LiteralPath $assetDirectory) {
+          $assetDirectory = Join-Path -Path $env:RUNNER_TEMP -ChildPath (
+            'rustdesk-nasm-2.16.03-{0}' -f [guid]::NewGuid().ToString('N')
+          )
+        }
+        New-Item -ItemType Directory -Path $assetDirectory | Out-Null
+
+        $zipPath = Join-Path -Path $assetDirectory -ChildPath 'nasm-2.16.03-win64.zip'
+        $downloadUrls = @(
+          'https://www.nasm.us/pub/nasm/releasebuilds/2.16.03/win64/nasm-2.16.03-win64.zip',
+          'https://vcpkg.github.io/assets/nasm/nasm-2.16.03-win64.zip'
+        )
+        $downloaded = $false
+        $downloadErrors = @()
+        foreach ($url in $downloadUrls) {
+          try {
+            Invoke-WebRequest -Uri $url -OutFile $zipPath -UseBasicParsing
+            $downloaded = $true
+            break
+          }
+          catch {
+            $summary = $_.Exception.Message
+            if ([string]::IsNullOrWhiteSpace($summary)) {
+              $summary = 'unknown download error'
+            }
+            $downloadErrors += "${url}: $summary"
+          }
+        }
+        if (-not $downloaded) {
+          throw ("Failed to download NASM 2.16.03 from official sources:`n" + ($downloadErrors -join "`n"))
+        }
+
+        $expectedSha512 = '22869ceb70ea0e6597fe06abe205b5d5dd66b41fe54dda73d338c488ba6ef13a39158f25b357616bf578752bb112869ef26ad897eb29352e85cf1ecc61a7c07a'
+        $actualSha512 = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA512).Hash
+        if (-not [string]::Equals($actualSha512, $expectedSha512, [System.StringComparison]::OrdinalIgnoreCase)) {
+          throw 'NASM archive SHA512 verification failed.'
+        }
+
+        $extractDirectory = Join-Path -Path $assetDirectory -ChildPath 'extract'
+        New-Item -ItemType Directory -Path $extractDirectory | Out-Null
+        Expand-Archive -LiteralPath $zipPath -DestinationPath $extractDirectory
+
+        $nasmPath = Join-Path -Path $extractDirectory -ChildPath 'nasm-2.16.03\nasm.exe'
+        if (-not (Test-Path -LiteralPath $nasmPath -PathType Leaf)) {
+          throw 'The verified NASM archive did not contain nasm-2.16.03\nasm.exe.'
+        }
+        $nasmPath = [System.IO.Path]::GetFullPath($nasmPath)
+        $nasmDirectory = [System.IO.Path]::GetDirectoryName($nasmPath)
+
+        $env:Path = "$nasmDirectory$([System.IO.Path]::PathSeparator)$env:Path"
+        [System.IO.File]::AppendAllText(
+          $env:GITHUB_PATH,
+          "$nasmDirectory`n",
+          [System.Text.UTF8Encoding]::new($false)
+        )
+
+        $whereOutput = @(& where.exe nasm 2>&1)
+        $whereExitCode = $LASTEXITCODE
+        if ($whereExitCode -ne 0) {
+          throw "where.exe nasm failed (exit code $whereExitCode)."
+        }
+        $wherePaths = @(
+          $whereOutput |
+            ForEach-Object { $_.ToString().Trim() } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+        )
+        $wherePaths | Write-Output
+        $whereHasSelectedPath = $false
+        foreach ($wherePath in $wherePaths) {
+          try {
+            $whereFullPath = [System.IO.Path]::GetFullPath($wherePath)
+          }
+          catch {
+            continue
+          }
+          if ([string]::Equals($whereFullPath, $nasmPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $whereHasSelectedPath = $true
+            break
+          }
+        }
+        if (-not $whereHasSelectedPath) {
+          throw 'where.exe nasm did not resolve the selected NASM 2.16.03 executable.'
+        }
+
+        $resolvedCommand = Get-Command -Name nasm -CommandType Application -ErrorAction Stop
+        $resolvedPath = [System.IO.Path]::GetFullPath($resolvedCommand.Path)
+        if (-not [string]::Equals($resolvedPath, $nasmPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+          throw 'Get-Command nasm did not resolve the selected NASM 2.16.03 executable.'
+        }
+
+        $nasmVersionOutput = @(& nasm -v 2>&1)
+        $nasmExitCode = $LASTEXITCODE
+        $nasmVersionText = (
+          $nasmVersionOutput |
+            ForEach-Object { $_.ToString().Trim() } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+            Out-String
+        ).Trim()
+        $nasmVersionText | Write-Output
+        if ($nasmExitCode -ne 0) {
+          throw "nasm -v failed (exit code $nasmExitCode)."
+        }
+        if ($nasmVersionText -notmatch '(?im)^\s*NASM version 2\.16\.03(?:\s|$)') {
+          throw 'nasm -v did not report NASM version 2.16.03.'
+        }

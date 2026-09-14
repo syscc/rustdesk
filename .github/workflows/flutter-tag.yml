@@ -1,4 +1,5 @@
 name: Flutter Tag Build
+run-name: Flutter ${{ inputs.source-ref || github.ref_name }} → ${{ inputs.upload-tag || github.ref_name }}
 
 on:
   workflow_dispatch:
@@ -9,7 +10,12 @@ on:
         default: refs/heads/master
         type: string
       upload-artifact:
-        description: Upload build artifacts and publish the configured release files
+        description: Build packages and upload workflow artifacts
+        required: true
+        default: true
+        type: boolean
+      publish-release:
+        description: Publish packages to Releases (disable for a full packaging test)
         required: true
         default: true
         type: boolean
@@ -25,6 +31,11 @@ on:
       - 'v[0-9]+.[0-9]+.[0-9]+-[0-9]+'
       - '[0-9]+.[0-9]+.[0-9]+-[0-9]+'
 
+# Runs publishing the same release must not delete/replace each other's assets.
+concurrency:
+  group: flutter-release-${{ github.event_name == 'push' && github.ref_name || inputs.upload-tag || 'nightly' }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
@@ -37,4 +48,5 @@ jobs:
       source-ref: ${{ github.event_name == 'push' && github.ref || inputs.source-ref }}
       apply-syscc-patches: true
       upload-artifact: ${{ github.event_name == 'push' || inputs.upload-artifact }}
-      upload-tag: ${{ github.event_name == 'push' && github.ref_type == 'tag' && github.ref_name || 'nightly' }}
+      upload-tag: ${{ github.event_name == 'push' && github.ref_name || inputs.upload-tag || 'nightly' }}
+      publish-release: ${{ github.event_name == 'push' || inputs.publish-release }}

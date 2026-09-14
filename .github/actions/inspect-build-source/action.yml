@@ -1,0 +1,42 @@
+name: Inspect RustDesk build source
+description: Read and validate build metadata from the checked-out upstream RustDesk source
+
+outputs:
+  source-sha:
+    description: Checked-out source commit SHA
+    value: ${{ steps.inspect.outputs.source-sha }}
+  version:
+    description: RustDesk package version
+    value: ${{ steps.inspect.outputs.version }}
+  vcpkg-commit:
+    description: Pinned vcpkg baseline commit
+    value: ${{ steps.inspect.outputs.vcpkg-commit }}
+  supports-drm:
+    description: Whether the source supports the DRM build path
+    value: ${{ steps.inspect.outputs.supports-drm }}
+  supports-msi-template:
+    description: Whether the MSI preprocessor supports --template
+    value: ${{ steps.inspect.outputs.supports-msi-template }}
+  needs-pam:
+    description: Whether the Cargo manifest depends on pam or pam-sys
+    value: ${{ steps.inspect.outputs.needs-pam }}
+  needs-nasm2:
+    description: Whether the selected source requires NASM 2.16.03 for its AOM build
+    value: ${{ steps.inspect.outputs.needs-nasm2 }}
+
+runs:
+  using: composite
+  steps:
+    - name: Inspect build source
+      id: inspect
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        set -euo pipefail
+        if ! command -v python3.12 >/dev/null 2>&1; then
+          echo "Python 3.12 is required for inspect-build-source" >&2
+          exit 1
+        fi
+        cd "${GITHUB_WORKSPACE}"
+        python3.12 "${ACTION_PATH}/inspect_source.py"

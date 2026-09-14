@@ -17,6 +17,7 @@ runs:
       run: |
         set -euo pipefail
 
+        cd "${GITHUB_WORKSPACE}"
         test -d libs/hbb_common
         test -f src/common.rs
         test -f "${ACTION_PATH}/apply.py"
@@ -37,6 +38,7 @@ runs:
       run: |
         set -euo pipefail
 
+        cd "${GITHUB_WORKSPACE}"
         python_command="python3"
         if ! command -v "$python_command" >/dev/null 2>&1; then
           python_command="python"

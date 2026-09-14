@@ -60,7 +60,7 @@ jobs:
           submodules: recursive
 
       - name: Prepare syscc build source
-        uses: syscc/rustdesk/.github/actions/apply-syscc-overrides@main
+        uses: syscc/rustdesk/.github/actions/apply-overrides@main
         with:
           enabled: ${{ inputs.apply-syscc-patches }}
       - name: Install prerequisites

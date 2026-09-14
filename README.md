@@ -13,13 +13,15 @@
 ```text
 运行 Flutter Tag Build
         ↓
-直接 checkout rustdesk/rustdesk 的 master/tag
+按 source-ref checkout rustdesk/rustdesk
         ↓
-checkout master 或指定 tag
+inspect-source 只读预检：读取 Cargo 版本、vcpkg baseline、源码 SHA 和构建能力
+        ↓
+所有平台按同一个源码 SHA checkout
         ↓
 读取 GitHub Repository secrets
         ↓
-执行 .github/actions/apply-syscc-overrides/apply.py
+执行 .github/actions/apply-overrides/apply.py
         ↓
 只修改 src/common.rs 和 libs/hbb_common/src/config.rs
         ↓
@@ -27,6 +29,13 @@ checkout master 或指定 tag
 ```
 
 本仓库中的 `apply.py` 不复制 `main` 的 RustDesk 源文件，也不覆盖整个 `libs/hbb_common` 目录；它只对当前 checkout 的上游文件做定向替换。
+
+## 源码预检与能力边界
+
+- `source-ref` 决定使用上游的 branch、tag 或 commit。预检从该 checkout 的 `Cargo.toml` 读取版本，并从 `vcpkg.json` 读取 vcpkg baseline；工作流不再固定版本号。
+- 预检得到的源码 SHA 会传给所有平台，确保同一次构建使用同一份源码。
+- 旧 tag 如果没有 DRM 或 MSI template 能力，只跳过对应变体；普通 MSI 构建不受影响。
+- Flutter 构建入口使用 `upload-tag` 作为发布时的 tag。`upload-artifact=true` 且 `publish-release=false` 会执行完整打包并上传 Actions 制品，但不会写入 Release；两个选项都为 `true` 时保持正常发布行为。
 
 ## GitHub Repository secrets
 
@@ -48,19 +57,31 @@ checkout master 或指定 tag
 ### 构建同步后的 master/nightly
 
 ```text
-Branch: main
-Branch, tag, or commit: refs/heads/master
-Upload build artifacts: true
-Release tag: nightly
+Workflow branch: main
+source-ref: refs/heads/master
+upload-artifact: true
+publish-release: true
+upload-tag: nightly
 ```
 
 ### 构建历史 tag 1.4.9
 
 ```text
-Branch: main
-Branch, tag, or commit: refs/tags/1.4.9
-Upload build artifacts: true
-Release tag: 1.4.9
+Workflow branch: main
+source-ref: refs/tags/1.4.9
+upload-artifact: true
+publish-release: true
+upload-tag: 1.4.9
+```
+
+### 完整打包并测试 Actions 制品，但不发布 Release
+
+```text
+Workflow branch: main
+source-ref: refs/heads/master
+upload-artifact: true
+publish-release: false
+upload-tag: packaging-test
 ```
 
 指定 tag 时，主体代码来自该 tag；服务器域名、公钥以及启用的可选配置由 `main` 中的替换脚本在构建时注入。
@@ -70,6 +91,6 @@ Release tag: 1.4.9
 - 构建工作流：`.github/workflows/flutter-build.yml`
 - Tag 构建入口：`.github/workflows/flutter-tag.yml`
 - Bridge 工作流：`.github/workflows/bridge.yml`
-- 构建时替换 action：`.github/actions/apply-syscc-overrides/action.yml`
-- 构建时替换脚本：`.github/actions/apply-syscc-overrides/apply.py`
+- 构建时替换 action：`.github/actions/apply-overrides/action.yml`
+- 构建时替换脚本：`.github/actions/apply-overrides/apply.py`
 - 构建辅助补丁：`.github/patches/`
