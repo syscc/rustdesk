@@ -36,6 +36,7 @@ inspect-source 只读预检：读取 Cargo 版本、vcpkg baseline、源码 SHA 
 - 预检得到的源码 SHA 会传给所有平台，确保同一次构建使用同一份源码。
 - 旧 tag 如果没有 DRM 或 MSI template 能力，只跳过对应变体；普通 MSI 构建不受影响。
 - Flutter 构建入口使用 `upload-tag` 作为发布时的 tag。`upload-artifact=true` 且 `publish-release=false` 会执行完整打包并上传 Actions 制品，但不会写入 Release；两个选项都为 `true` 时保持正常发布行为。
+- 发布到 GitHub Releases 的构建默认创建正式版；是否发布仍由 `publish-release` 控制，`upload-tag` 只决定 Release 标签名。
 
 ## GitHub Repository secrets
 

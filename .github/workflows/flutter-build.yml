@@ -110,7 +110,7 @@ jobs:
           repository: ${{ github.repository }}
           target_commitish: ${{ github.sha }}
           tag_name: ${{ inputs.upload-tag }}
-          prerelease: true
+          prerelease: false
 
   generate-sbom:
     needs: [inspect-source]
@@ -156,7 +156,7 @@ jobs:
         with:
           repository: ${{ github.repository }}
           target_commitish: ${{ github.sha }}
-          prerelease: true
+          prerelease: false
           tag_name: ${{ env.TAG_NAME }}
           files: |
             rustdesk.sbom.json
@@ -172,7 +172,7 @@ jobs:
         with:
           repository: ${{ github.repository }}
           target_commitish: ${{ github.sha }}
-          prerelease: true
+          prerelease: false
           tag_name: ${{ env.TAG_NAME }}
           files: |
             rustdesk.sbom.json
@@ -573,7 +573,7 @@ jobs:
         with:
           repository: ${{ github.repository }}
           target_commitish: ${{ github.sha }}
-          prerelease: true
+          prerelease: false
           tag_name: ${{ env.TAG_NAME }}
           files: |
             ./SignOutput/rustdesk-*.msi
@@ -760,7 +760,7 @@ jobs:
         with:
           repository: ${{ github.repository }}
           target_commitish: ${{ github.sha }}
-          prerelease: true
+          prerelease: false
           tag_name: ${{ env.TAG_NAME }}
           files: |
             ./SignOutput/rustdesk-*.exe
@@ -1132,7 +1132,7 @@ jobs:
         with:
           repository: ${{ github.repository }}
           target_commitish: ${{ github.sha }}
-          prerelease: true
+          prerelease: false
           tag_name: ${{ env.TAG_NAME }}
           files: |
             rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.dmg
@@ -1202,7 +1202,7 @@ jobs:
         with:
           repository: ${{ github.repository }}
           target_commitish: ${{ github.sha }}
-          prerelease: true
+          prerelease: false
           tag_name: ${{ env.TAG_NAME }}
           files: rustdesk-${{ env.VERSION }}-unsigned.tar.gz
 
@@ -1498,7 +1498,7 @@ jobs:
         with:
           repository: ${{ github.repository }}
           target_commitish: ${{ github.sha }}
-          prerelease: true
+          prerelease: false
           tag_name: ${{ env.TAG_NAME }}
           files: |
             ${{steps.sign-rustdesk.outputs.signedReleaseFile}}
@@ -1509,7 +1509,7 @@ jobs:
         with:
           repository: ${{ github.repository }}
           target_commitish: ${{ github.sha }}
-          prerelease: true
+          prerelease: false
           tag_name: ${{ env.TAG_NAME }}
           files: |
             signed-apk/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.apk
@@ -1696,7 +1696,7 @@ jobs:
         with:
           repository: ${{ github.repository }}
           target_commitish: ${{ github.sha }}
-          prerelease: true
+          prerelease: false
           tag_name: ${{ env.TAG_NAME }}
           files: |
             ${{steps.sign-rustdesk.outputs.signedReleaseFile}}
@@ -1707,7 +1707,7 @@ jobs:
         with:
           repository: ${{ github.repository }}
           target_commitish: ${{ github.sha }}
-          prerelease: true
+          prerelease: false
           tag_name: ${{ env.TAG_NAME }}
           files: |
             signed-apk/rustdesk-${{ env.VERSION }}-universal${{ env.suffix }}.apk
@@ -2032,7 +2032,7 @@ jobs:
         with:
           repository: ${{ github.repository }}
           target_commitish: ${{ github.sha }}
-          prerelease: true
+          prerelease: false
           tag_name: ${{ env.TAG_NAME }}
           files: |
             rustdesk-*.deb
@@ -2070,7 +2070,7 @@ jobs:
         with:
           repository: ${{ github.repository }}
           target_commitish: ${{ github.sha }}
-          prerelease: true
+          prerelease: false
           tag_name: ${{ env.TAG_NAME }}
           files: |
             res/rustdesk-${{ env.VERSION }}*.zst
@@ -2348,7 +2348,7 @@ jobs:
         with:
           repository: ${{ github.repository }}
           target_commitish: ${{ github.sha }}
-          prerelease: true
+          prerelease: false
           tag_name: ${{ env.TAG_NAME }}
           files: |
             ${{ env.DRM_DEB }}
@@ -2607,7 +2607,7 @@ jobs:
         with:
           repository: ${{ github.repository }}
           target_commitish: ${{ github.sha }}
-          prerelease: true
+          prerelease: false
           tag_name: ${{ env.TAG_NAME }}
           files: |
             rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}-sciter.deb
@@ -2672,7 +2672,7 @@ jobs:
         with:
           repository: ${{ github.repository }}
           target_commitish: ${{ github.sha }}
-          prerelease: true
+          prerelease: false
           tag_name: ${{ env.TAG_NAME }}
           files: |
             ./appimage/rustdesk-${{ env.VERSION }}-*.AppImage
@@ -2763,7 +2763,7 @@ jobs:
         with:
           repository: ${{ github.repository }}
           target_commitish: ${{ github.sha }}
-          prerelease: true
+          prerelease: false
           tag_name: ${{ env.TAG_NAME }}
           files: |
             flatpak/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.flatpak
@@ -2859,7 +2859,7 @@ jobs:
         with:
           repository: ${{ github.repository }}
           target_commitish: ${{ github.sha }}
-          prerelease: true
+          prerelease: false
           tag_name: ${{ env.TAG_NAME }}
           files: |
             flutter/build/rustdesk-${{ env.VERSION }}-${{ env.RELEASE_NAME }}.tar.gz
