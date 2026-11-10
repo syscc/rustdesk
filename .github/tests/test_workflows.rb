@@ -196,6 +196,18 @@ class WorkflowContractTest < Minitest::Test
     end
   end
 
+  def test_macos_builds_use_supported_native_runners
+    macos = @build_jobs.fetch('build-for-macOS')
+    assert_equal '${{ matrix.job.os }}', macos.fetch('runs-on')
+    runners = macos.fetch('strategy').fetch('matrix').fetch('job').map do |job|
+      [job.fetch('target'), job.fetch('os')]
+    end.to_h
+    assert_equal({
+      'x86_64-apple-darwin' => 'macos-15-intel',
+      'aarch64-apple-darwin' => 'macos-15'
+    }, runners)
+  end
+
   def test_macos_dmg_is_normalized_without_duplicate_architecture
     macos = @build_jobs.fetch('build-for-macOS')
     create_steps = steps(macos).select { |step| step['name'] == 'create unsigned dmg' }
