@@ -1,9 +1,13 @@
 name: Prepare syscc build source
-description: Prepare build helpers and optionally apply syscc custom changes to the checked-out source
+description: Prepare build helpers and optionally apply syscc custom changes or enable automatic elevation for portable Windows builds
 
 inputs:
   enabled:
     description: Apply syscc custom changes to the checked-out source
+    required: false
+    default: 'false'
+  pre-elevate-service:
+    description: Enable automatic portable-service elevation for Windows builds
     required: false
     default: 'false'
 
@@ -31,10 +35,12 @@ runs:
         echo "SYSCC_BUILD_ASSETS=${build_assets}" >> "$GITHUB_ENV"
 
     - name: Apply syscc source changes
-      if: inputs.enabled == 'true'
+      if: inputs.enabled == 'true' || inputs.pre-elevate-service == 'true'
       shell: bash
       env:
         ACTION_PATH: ${{ github.action_path }}
+        APPLY_SYSCC_OVERRIDES: ${{ inputs.enabled }}
+        PRE_ELEVATE_SERVICE: ${{ inputs.pre-elevate-service }}
       run: |
         set -euo pipefail
 

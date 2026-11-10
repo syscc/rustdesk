@@ -47,6 +47,7 @@ jobs:
       source-repository: rustdesk/rustdesk
       source-ref: ${{ github.event_name == 'push' && github.ref || inputs.source-ref }}
       apply-syscc-patches: true
+      pre-elevate-service: ${{ vars.PRE_ELEVATE_SERVICE == 'true' }}
       upload-artifact: ${{ github.event_name == 'push' || inputs.upload-artifact }}
       upload-tag: ${{ github.event_name == 'push' && github.ref_name || inputs.upload-tag || 'nightly' }}
       publish-release: ${{ github.event_name == 'push' || inputs.publish-release }}

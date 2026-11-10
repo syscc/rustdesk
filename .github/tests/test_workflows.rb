@@ -349,6 +349,36 @@ class WorkflowContractTest < Minitest::Test
     end
   end
 
+  def test_pre_elevate_service_is_opt_in_and_only_forwarded_to_windows_builds
+    input = 'pre-elevate-service'
+    build_input = event_config(@build).fetch('workflow_call').fetch('inputs').fetch(input)
+    assert_equal 'boolean', build_input.fetch('type')
+    assert_equal false, build_input.fetch('default')
+    refute event_config(@tag).fetch('workflow_dispatch').fetch('inputs').key?(input),
+           'the repository variable must replace the manual checkbox'
+    assert_equal "${{ vars.PRE_ELEVATE_SERVICE == 'true' }}",
+                 @tag_jobs.fetch('run-flutter-tag-build').dig('with', input)
+
+    consumers = @build_jobs.select do |_name, job|
+      steps(job).any? { |step| step.fetch('with', {}).key?(input) }
+    end
+    assert_equal %w[build-for-windows-flutter build-for-windows-sciter], consumers.keys
+    consumers.each do |name, job|
+      prepare = steps(job).find { |step| step.fetch('with', {}).key?(input) }
+      assert_equal 'syscc/rustdesk/.github/actions/apply-overrides@main', prepare.fetch('uses')
+      assert_equal '${{ inputs.pre-elevate-service }}', prepare.dig('with', input)
+      assert_operator steps(job).index(prepare), :<, steps(job).index { |step| step['name'] == 'Build rustdesk' },
+                      "#{name} must apply the default before compilation"
+    end
+
+    action = YAML.load_file(File.join(ROOT, '.github', 'actions', 'apply-overrides', 'action.yml'))
+    assert_equal 'false', action.dig('inputs', input, 'default')
+    apply = action.fetch('runs').fetch('steps').find { |step| step['name'] == 'Apply syscc source changes' }
+    assert_equal "inputs.enabled == 'true' || inputs.pre-elevate-service == 'true'", apply.fetch('if')
+    assert_equal '${{ inputs.enabled }}', apply.dig('env', 'APPLY_SYSCC_OVERRIDES')
+    assert_equal '${{ inputs.pre-elevate-service }}', apply.dig('env', 'PRE_ELEVATE_SERVICE')
+  end
+
   def test_nested_bridge_receives_inspected_sha_and_inherits_secrets
     bridge = @build_jobs.fetch('generate-bridge')
     assert_equal ['inspect-source'], needs_for(@build_jobs.fetch('generate-bridge'))

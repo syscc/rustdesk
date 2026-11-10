@@ -10,6 +10,7 @@ ROOT = Path(os.environ.get("GITHUB_WORKSPACE", Path.cwd())).resolve()
 SRC_PATH = ROOT / "src/common.rs"
 HBB_CONFIG_PATH = ROOT / "libs/hbb_common/src/config.rs"
 CUSTOM_SETTINGS_MARKER = "// syscc custom settings from repository variables"
+PRE_ELEVATE_SERVICE_MARKER = "// syscc pre-elevate-service default"
 
 
 def get_required_variable(name: str) -> str:
@@ -201,7 +202,42 @@ def apply_hbb_config_override() -> None:
     HBB_CONFIG_PATH.write_text(config, encoding="utf-8")
 
 
+def apply_pre_elevate_service() -> None:
+    core_main = (ROOT / "src/core_main.rs").read_text(encoding="utf-8")
+    if not re.search(
+        r'LocalConfig::get_option\("pre-elevate-service"\)\s*==\s*"Y"', core_main
+    ):
+        raise RuntimeError("Selected source does not support pre-elevate-service")
+
+    source = SRC_PATH.read_text(encoding="utf-8")
+    block = "\n".join(
+        [
+            f"    {PRE_ELEVATE_SERVICE_MARKER}",
+            "    #[cfg(windows)]",
+            "    {",
+            "        config::DEFAULT_LOCAL_SETTINGS.write().unwrap()",
+            '            .entry("pre-elevate-service".to_string())',
+            '            .or_insert("Y".to_string());',
+            "    }",
+        ]
+    )
+    if PRE_ELEVATE_SERVICE_MARKER not in source:
+        source = replace_regex_once(
+            source,
+            r"^pub fn load_custom_client\(\) \{$",
+            "pub fn load_custom_client() {\n" + block,
+            "custom-client loader",
+        )
+    if source.count(PRE_ELEVATE_SERVICE_MARKER) != 1 or block not in source:
+        raise RuntimeError("pre-elevate-service override validation failed")
+    SRC_PATH.write_text(source, encoding="utf-8")
+
+
 if __name__ == "__main__":
-    apply_source_overrides()
-    apply_hbb_config_override()
-    print("Applied syscc repository-variable changes to the checked-out source")
+    if os.environ.get("APPLY_SYSCC_OVERRIDES", "true") == "true":
+        apply_source_overrides()
+        apply_hbb_config_override()
+        print("Applied syscc repository-variable changes to the checked-out source")
+    if os.environ.get("PRE_ELEVATE_SERVICE") == "true":
+        apply_pre_elevate_service()
+        print("Enabled automatic Windows portable-service elevation by default")
