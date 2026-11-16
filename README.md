@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/rustdesk/rustdesk/master/res/logo-header.svg" alt="RustDesk - Your remote desktop"><br>
+  <img src="https://raw.githubusercontent.com/rustdesk/rustdesk/master/res/logo-header.svg" alt="RustDesk - Your remote desktop">
 </p>
 
 # syscc RustDesk 构建仓库
@@ -38,15 +38,18 @@ inspect-source 只读预检：读取 Cargo 版本、vcpkg baseline、源码 SHA 
 
 本仓库中的 `apply.py` 不复制 `main` 的 RustDesk 源文件，也不覆盖整个 `libs/hbb_common` 目录；它只对当前 checkout 的上游文件做定向替换。
 
+指定 tag 时，主体代码来自该 tag；服务器域名、公钥以及启用的可选配置由 `main` 中的替换脚本在构建时注入。
+
 ## 源码预检与能力边界
 
-- `source-ref` 决定使用上游的 branch、tag 或 commit；默认值为 `refs/tags/Latest`，运行时解析为上游最新正式版 tag（如 `refs/tags/1.5.3`）。预检从该 checkout 的 `Cargo.toml` 读取版本，并从 `vcpkg.json` 读取 vcpkg baseline；工作流不再固定版本号。
+- `source-ref` 决定使用上游的 branch、tag 或 commit；默认值为 `refs/tags/Latest`，运行时解析为上游最新正式版 tag（如 `refs/tags/1.5.3`）。
+- `inspect-source` 预检从该 checkout 的 `Cargo.toml` 读取版本，并从 `vcpkg.json` 读取 vcpkg baseline；工作流不再固定版本号。
 - 预检得到的源码 SHA 会传给所有平台，确保同一次构建使用同一份源码。
 - 旧 tag 如果没有 DRM 或 MSI template 能力，只跳过对应变体；普通 MSI 构建不受影响。
 - Flutter 构建入口使用 `upload-tag` 作为发布时的 tag；默认值为 `Latest`，运行时解析为上游最新正式版本号（如 `1.5.3`）。`upload-artifact=true` 且 `publish-release=false` 会执行完整打包并上传 Actions 制品，但不会写入 Release；两个选项都为 `true` 时保持正常发布行为。
 - 发布到 GitHub Releases 的构建默认创建正式版；是否发布仍由 `publish-release` 控制，`upload-tag` 只决定 Release 标签名。
 
-## GitHub Repository secrets
+## 仓库 Secrets 配置
 
 在 GitHub 仓库的 **Settings → Secrets and variables → Actions → Secrets** 中配置：
 
@@ -57,9 +60,11 @@ inspect-source 只读预检：读取 Cargo 版本、vcpkg baseline、源码 SHA 
 | `FIXED_PASSWORD` | 否 | 固定密码；为空时不写入固定密码配置 |
 | `API_SERVER` | 否 | API 服务器完整地址；为空时保留上游默认 API 地址 |
 
-固定密码会写入构建后的客户端。这些值通过 Repository secrets 传入构建流程，不会写入 `main` 源码。固定密码会进入最终客户端，请仅在确有需要时配置。
+这些值通过 Repository secrets 传入构建流程，不会写入 `main` 源码；固定密码会写入最终客户端，请仅在确有需要时配置。
 
-## GitHub Repository variables
+签名与公证相关的 secrets（`ANDROID_SIGNING_KEY`、`MACOS_P12_BASE64`、`SIGN_BASE_URL`、`SIGN_SECRET_KEY` 等）为可选：未配置时工作流会跳过对应签名步骤，仍可完成构建。
+
+## 仓库 Variables 配置
 
 在 GitHub 仓库的 **Settings → Secrets and variables → Actions → Variables** 中配置（不是 Secrets）：
 
@@ -67,61 +72,27 @@ inspect-source 只读预检：读取 Cargo 版本、vcpkg baseline、源码 SHA 
 | --- | --- | --- |
 | `PRE_ELEVATE_SERVICE` | `false`（未配置也关闭） | 设为 `true`，启用 Windows portable 启动时自动请求提升便携服务权限 |
 
-手动运行 `Flutter Tag Build` 和推送 tag 触发的构建均读取此变量，无需每次勾选。修改变量只影响后续构建的客户端，不影响已发布的客户端。
-
-启用后，Windows portable 客户端（Flutter x64/ARM64 和 Sciter x86）普通无参数启动时会自动请求提升便携服务权限，省去用户在 RustDesk 中手动点击提权。Windows 仍会显示 UAC，用户需要确认；标准账户可能需要输入管理员凭据。取消 UAC 不会自动获得管理员权限。
-
-该选项复用上游的 `pre-elevate-service` 默认设置，不强制提升主界面权限；已安装版继续使用现有服务。已有本地设置或自定义客户端配置可覆盖此默认值。关闭时保持上游行为。若所选旧版本不支持该设置，开启时构建会明确报错。此选项只传给 Windows 构建任务，也可在调用 `flutter-build.yml` 时通过 `pre-elevate-service` 输入单独启用，无需启用 `apply-syscc-patches`。
+- **生效范围**：手动运行 `Flutter Tag Build` 和推送 tag 触发的构建都会读取此变量，无需每次勾选；改动只影响后续构建的客户端，不影响已发布的客户端。
+- **开启后的行为**：Windows portable 客户端（Flutter x64/ARM64 和 Sciter x86）普通无参数启动时会自动请求提升便携服务权限，省去用户在 RustDesk 中手动点击提权。Windows 仍会显示 UAC，用户需要确认；标准账户可能需要输入管理员凭据，取消 UAC 不会自动获得管理员权限。
+- **实现方式**：复用上游的 `pre-elevate-service` 默认设置，不强制提升主界面权限；已安装版继续使用现有服务。已有本地设置或自定义客户端配置可覆盖此默认值，关闭时保持上游行为。若所选旧版本不支持该设置，开启时构建会明确报错。
+- **范围限制**：只对 Windows 构建任务生效；也可在调用 `flutter-build.yml` 时通过 `pre-elevate-service` 输入单独启用，无需启用 `apply-syscc-patches`。
 
 ## 手动构建
 
-进入 **Actions → Flutter Tag Build → Run workflow**。
+进入 **Actions → Flutter Tag Build → Run workflow**（`Workflow branch` 选 `main`）。
 
 `source-ref` 和 `upload-tag` 的默认值都是 `Latest`：运行时会调用上游 `rustdesk/rustdesk` 的最新正式 Release（自动排除 prerelease 和 draft），把 `source-ref` 解析为对应 tag（如 `refs/tags/1.5.3`）、`upload-tag` 解析为同一版本号（如 `1.5.3`）。直接点 **Run workflow**、不修改任何输入，即可构建并发布上游最新正式版；解析结果会写入运行的 Summary。
 
 `Latest` 也可以写成 `latest` 或 `refs/tags/Latest`。任一项显式填写 branch、tag、commit 或自定义 Release 标签时，按填写内容执行（例如 `source-ref` 填 `refs/heads/master`、`upload-tag` 仍留 `Latest`，则构建 master、发布为上游最新正式版本号）。
 
-### 构建上游最新正式版（默认）
+常用组合：
 
-```text
-Workflow branch: main
-source-ref: refs/tags/Latest
-upload-artifact: true
-publish-release: true
-upload-tag: Latest
-```
-
-### 构建同步后的 master/nightly
-
-```text
-Workflow branch: main
-source-ref: refs/heads/master
-upload-artifact: true
-publish-release: true
-upload-tag: nightly
-```
-
-### 构建历史 tag 1.4.9
-
-```text
-Workflow branch: main
-source-ref: refs/tags/1.4.9
-upload-artifact: true
-publish-release: true
-upload-tag: 1.4.9
-```
-
-### 完整打包并测试 Actions 制品，但不发布 Release
-
-```text
-Workflow branch: main
-source-ref: refs/heads/master
-upload-artifact: true
-publish-release: false
-upload-tag: packaging-test
-```
-
-指定 tag 时，主体代码来自该 tag；服务器域名、公钥以及启用的可选配置由 `main` 中的替换脚本在构建时注入。
+| 场景 | `source-ref` | `upload-artifact` | `publish-release` | `upload-tag` |
+| --- | --- | --- | --- | --- |
+| 构建上游最新正式版（默认） | `refs/tags/Latest` | 勾选 | 勾选 | `Latest` |
+| 构建同步后的 master/nightly | `refs/heads/master` | 勾选 | 勾选 | `nightly` |
+| 构建历史 tag 1.4.9 | `refs/tags/1.4.9` | 勾选 | 勾选 | `1.4.9` |
+| 只打包制品、不发布 Release | `refs/heads/master` | 勾选 | 取消勾选 | `packaging-test` |
 
 ## 关键文件
 
@@ -131,3 +102,7 @@ upload-tag: packaging-test
 - 构建时替换 action：`.github/actions/apply-overrides/action.yml`
 - 构建时替换脚本：`.github/actions/apply-overrides/apply.py`
 - 构建辅助补丁：`.github/patches/`
+
+## 许可证
+
+本仓库遵循 [AGPL-3.0](LICENCE)；上游 RustDesk 源码的许可说明见 [rustdesk/rustdesk](https://github.com/rustdesk/rustdesk)。
