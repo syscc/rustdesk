@@ -1,5 +1,5 @@
 name: Flutter Tag Build
-run-name: Flutter ${{ github.event_name == 'push' && github.ref_name || inputs.source-ref || 'latest stable release' }} → ${{ inputs.upload-tag || github.ref_name }}
+run-name: Flutter ${{ github.event_name == 'push' && github.ref_name || inputs.source-ref || 'latest stable release' }} → ${{ github.event_name == 'push' && github.ref_name || inputs.upload-tag || 'auto' }}
 
 on:
   workflow_dispatch:
@@ -19,9 +19,8 @@ on:
         default: true
         type: boolean
       upload-tag:
-        description: Release tag used when artifacts are published
-        required: true
-        default: nightly
+        description: Release tag used when artifacts are published (blank uses the resolved source tag)
+        required: false
         type: string
   push:
     tags:
@@ -41,9 +40,12 @@ permissions:
 jobs:
   resolve-latest-tag:
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.source-ref == ''
     permissions:
       contents: read
+    outputs:
+      source-ref: ${{ steps.resolve.outputs.source-ref }}
+      tag: ${{ steps.resolve.outputs.tag }}
     steps:
       - name: Resolve latest stable tag from upstream
         id: resolve
@@ -60,9 +62,14 @@ jobs:
             exit 1
           fi
           echo "source-ref=refs/tags/$TAG" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
   run-flutter-tag-build:
     needs: [resolve-latest-tag]
+    # A skipped resolution is expected on tag pushes and when source-ref is set;
+    # never let a skipped dependency collapse the build, and never start it
+    # after cancellation.
+    if: ${{ !cancelled() && (needs.resolve-latest-tag.result == 'success' || needs.resolve-latest-tag.result == 'skipped') }}
     uses: ./.github/workflows/flutter-build.yml
     secrets: inherit
     with:
@@ -71,5 +78,5 @@ jobs:
       apply-syscc-patches: true
       pre-elevate-service: ${{ vars.PRE_ELEVATE_SERVICE == 'true' }}
       upload-artifact: ${{ github.event_name == 'push' || inputs.upload-artifact }}
-      upload-tag: ${{ github.event_name == 'push' && github.ref_name || inputs.upload-tag || 'nightly' }}
+      upload-tag: ${{ github.event_name == 'push' && github.ref_name || inputs.upload-tag || needs.resolve-latest-tag.outputs.tag || 'nightly' }}
       publish-release: ${{ github.event_name == 'push' || inputs.publish-release }}
