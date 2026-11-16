@@ -1,4 +1,4 @@
-# [syscc RustDesk 构建仓库](https://github.com/syscc/rustdesk)
+# syscc RustDesk 构建仓库
 
 本仓库用于构建 [rustdesk/rustdesk](https://github.com/rustdesk/rustdesk)，不在 `main` 中维护独立的 RustDesk 业务源码。
 构建时直接从 [rustdesk/rustdesk](https://github.com/rustdesk/rustdesk) 的 `master` 或指定 tag checkout 源码，然后使用本仓库的工作流和替换脚本完成构建。
