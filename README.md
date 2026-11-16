@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/rustdesk/rustdesk/master/res/logo-header.svg" alt="RustDesk" width="400">
+  <img src="https://raw.githubusercontent.com/rustdesk/rustdesk/master/res/logo-header.svg" alt="RustDesk - Your remote desktop"><br>
 </p>
 
 # syscc RustDesk 构建仓库
