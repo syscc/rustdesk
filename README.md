@@ -7,8 +7,6 @@
 
 [![本仓库最新发布](https://img.shields.io/github/release/syscc/rustdesk.svg?label=syscc%2Frustdesk)](https://github.com/syscc/rustdesk/releases) [![上游最新发布](https://img.shields.io/github/release/rustdesk/rustdesk.svg?label=rustdesk%2Frustdesk)](https://github.com/rustdesk/rustdesk/releases)
 
-徽章实时读取 GitHub Release 数据，上游发布新版本后无需修改本文件，刷新即可看到最新版本号。
-
 ## 分支职责
 
 - 上游 `rustdesk/rustdesk`：提供实际构建源码。
