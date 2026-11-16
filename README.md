@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/rustdesk/rustdesk/master/res/logo-header.svg" alt="RustDesk" width="400">
+</p>
+
 # syscc RustDesk 构建仓库
 
 [![本仓库最新发布](https://img.shields.io/github/release/syscc/rustdesk.svg?label=syscc%2Frustdesk)](https://github.com/syscc/rustdesk/releases) [![上游最新发布](https://img.shields.io/github/release/rustdesk/rustdesk.svg?label=rustdesk%2Frustdesk)](https://github.com/rustdesk/rustdesk/releases)
