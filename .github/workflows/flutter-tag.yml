@@ -5,9 +5,9 @@ on:
   workflow_dispatch:
     inputs:
       source-ref:
-        description: Branch, tag, or commit to build from rustdesk/rustdesk
+        description: Branch, tag, or commit to build from rustdesk/rustdesk ("Latest" or "refs/tags/Latest" uses the newest upstream stable tag)
         required: true
-        default: refs/heads/master
+        default: refs/tags/Latest
         type: string
       upload-artifact:
         description: Build packages and upload workflow artifacts
@@ -20,9 +20,9 @@ on:
         default: true
         type: boolean
       upload-tag:
-        description: Release tag used when artifacts are published
+        description: Release tag used when artifacts are published ("Latest" uses the newest upstream stable version)
         required: true
-        default: nightly
+        default: Latest
         type: string
   push:
     tags:
@@ -40,14 +40,65 @@ permissions:
   contents: write
 
 jobs:
+  resolve-latest-release:
+    runs-on: ubuntu-latest
+    # Runs unconditionally: a job skipped by "if" would also skip
+    # run-flutter-tag-build through "needs". Off workflow_dispatch both inputs are
+    # empty, so the step is a no-op and the outputs stay empty.
+    permissions:
+      contents: read
+    outputs:
+      source-ref: ${{ steps.resolve.outputs.source-ref }}
+      upload-tag: ${{ steps.resolve.outputs.upload-tag }}
+    steps:
+      - name: Resolve "Latest" to the newest upstream stable release
+        id: resolve
+        env:
+          SOURCE_REF: ${{ inputs.source-ref }}
+          UPLOAD_TAG: ${{ inputs.upload-tag }}
+          SOURCE_REPOSITORY: rustdesk/rustdesk
+        run: |
+          source_ref="$SOURCE_REF"
+          upload_tag="$UPLOAD_TAG"
+          resolve_latest() {
+            curl -fsSL \
+              -H "Authorization: Bearer ${{ github.token }}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$SOURCE_REPOSITORY/releases/latest" \
+              | jq -r '.tag_name // empty'
+          }
+          needs_version=0
+          case "$source_ref" in Latest|latest|refs/tags/Latest|refs/tags/latest) needs_version=1 ;; esac
+          case "$upload_tag" in Latest|latest) needs_version=1 ;; esac
+          if [ "$needs_version" = 1 ]; then
+            version=$(resolve_latest)
+            if [ -z "$version" ]; then
+              echo "::error::No stable release found in $SOURCE_REPOSITORY"
+              exit 1
+            fi
+            case "$source_ref" in Latest|latest|refs/tags/Latest|refs/tags/latest) source_ref="refs/tags/$version" ;; esac
+            case "$upload_tag" in Latest|latest) upload_tag="$version" ;; esac
+            echo "Resolved latest stable release: $version"
+            {
+              echo "### Latest upstream stable release"
+              echo ""
+              echo "- version: \`$version\`"
+              echo "- source-ref: \`$source_ref\`"
+              echo "- upload-tag: \`$upload_tag\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "source-ref=$source_ref" >> "$GITHUB_OUTPUT"
+          echo "upload-tag=$upload_tag" >> "$GITHUB_OUTPUT"
+
   run-flutter-tag-build:
+    needs: [resolve-latest-release]
     uses: ./.github/workflows/flutter-build.yml
     secrets: inherit
     with:
       source-repository: rustdesk/rustdesk
-      source-ref: ${{ github.event_name == 'push' && github.ref || inputs.source-ref }}
+      source-ref: ${{ github.event_name == 'push' && github.ref || needs.resolve-latest-release.outputs.source-ref }}
       apply-syscc-patches: true
       pre-elevate-service: ${{ vars.PRE_ELEVATE_SERVICE == 'true' }}
       upload-artifact: ${{ github.event_name == 'push' || inputs.upload-artifact }}
-      upload-tag: ${{ github.event_name == 'push' && github.ref_name || inputs.upload-tag || 'nightly' }}
+      upload-tag: ${{ github.event_name == 'push' && github.ref_name || needs.resolve-latest-release.outputs.upload-tag }}
       publish-release: ${{ github.event_name == 'push' || inputs.publish-release }}
