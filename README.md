@@ -71,6 +71,18 @@ inspect-source 只读预检：读取 Cargo 版本、vcpkg baseline、源码 SHA 
 
 进入 **Actions → Flutter Tag Build → Run workflow**。
 
+`source-ref` 留空时，工作流会自动解析上游 `rustdesk/rustdesk` 的最新正式版 tag（如 `v1.5.3`）并按该 tag 构建；显式填写 branch、tag 或 commit 时，按填写内容构建。
+
+### 构建上游最新正式版（默认）
+
+```text
+Workflow branch: main
+source-ref: （留空）
+upload-artifact: true
+publish-release: true
+upload-tag: nightly
+```
+
 ### 构建同步后的 master/nightly
 
 ```text

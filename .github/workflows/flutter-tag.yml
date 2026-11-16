@@ -1,13 +1,12 @@
 name: Flutter Tag Build
-run-name: Flutter ${{ inputs.source-ref || github.ref_name }} → ${{ inputs.upload-tag || github.ref_name }}
+run-name: Flutter ${{ github.event_name == 'push' && github.ref_name || inputs.source-ref || 'latest stable release' }} → ${{ inputs.upload-tag || github.ref_name }}
 
 on:
   workflow_dispatch:
     inputs:
       source-ref:
-        description: Branch, tag, or commit to build from rustdesk/rustdesk
-        required: true
-        default: refs/heads/master
+        description: Branch, tag, or commit to build from rustdesk/rustdesk (blank uses the latest stable tag)
+        required: false
         type: string
       upload-artifact:
         description: Build packages and upload workflow artifacts
@@ -40,12 +39,35 @@ permissions:
   contents: write
 
 jobs:
+  resolve-latest-tag:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+    steps:
+      - name: Resolve latest stable tag from upstream
+        id: resolve
+        env:
+          SOURCE_REPOSITORY: rustdesk/rustdesk
+        run: |
+          TAG=$(curl -fsSL \
+            -H "Authorization: Bearer ${{ github.token }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$SOURCE_REPOSITORY/releases/latest" \
+            | jq -r '.tag_name // empty')
+          if [ -z "$TAG" ]; then
+            echo "::error::No stable release found in $SOURCE_REPOSITORY"
+            exit 1
+          fi
+          echo "source-ref=refs/tags/$TAG" >> "$GITHUB_OUTPUT"
+
   run-flutter-tag-build:
+    needs: [resolve-latest-tag]
     uses: ./.github/workflows/flutter-build.yml
     secrets: inherit
     with:
       source-repository: rustdesk/rustdesk
-      source-ref: ${{ github.event_name == 'push' && github.ref || inputs.source-ref }}
+      source-ref: ${{ github.event_name == 'push' && github.ref || inputs.source-ref || needs.resolve-latest-tag.outputs.source-ref }}
       apply-syscc-patches: true
       pre-elevate-service: ${{ vars.PRE_ELEVATE_SERVICE == 'true' }}
       upload-artifact: ${{ github.event_name == 'push' || inputs.upload-artifact }}
