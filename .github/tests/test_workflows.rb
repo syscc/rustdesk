@@ -259,22 +259,44 @@ class WorkflowContractTest < Minitest::Test
 
   def test_tag_entrypoint_honours_upload_tag_and_serializes_the_same_target
     tag_inputs = event_config(@tag).fetch('workflow_dispatch').fetch('inputs')
-    assert_equal 'nightly', tag_inputs.fetch('upload-tag').fetch('default')
+    assert_equal 'Latest', tag_inputs.fetch('upload-tag').fetch('default')
+    assert_equal 'refs/tags/Latest', tag_inputs.fetch('source-ref').fetch('default')
 
     assert_equal '${{ inputs.upload-tag }}', @build.fetch('env').fetch('TAG_NAME')
 
     tag_job = @tag_jobs.fetch('run-flutter-tag-build')
     assert_equal 'inherit', tag_job.fetch('secrets')
+    assert_includes needs_for(tag_job), 'resolve-latest-release'
     upload_tag = tag_job.dig('with', 'upload-tag').to_s
     assert_match(/github\.event_name\s*==\s*'push'/, upload_tag)
     assert_match(/github\.ref_name/, upload_tag)
-    assert_match(/inputs\.upload-tag/, upload_tag)
+    assert_match(/needs\.resolve-latest-release\.outputs\.upload-tag/, upload_tag)
+    assert_match(/needs\.resolve-latest-release\.outputs\.source-ref/,
+                 tag_job.dig('with', 'source-ref').to_s)
 
     concurrency = @tag.fetch('concurrency')
     assert_equal false, concurrency.fetch('cancel-in-progress')
     group = concurrency.fetch('group').to_s
     assert_match(/github\.ref_name/, group)
     assert_match(/inputs\.upload-tag/, group)
+  end
+
+  def test_tag_entrypoint_resolves_latest_from_the_upstream_stable_release
+    resolve = @tag_jobs.fetch('resolve-latest-release')
+    assert_nil resolve['if'],
+               'a skipped resolve job would also skip run-flutter-tag-build through needs'
+    assert_equal '${{ steps.resolve.outputs.source-ref }}', resolve.dig('outputs', 'source-ref')
+    assert_equal '${{ steps.resolve.outputs.upload-tag }}', resolve.dig('outputs', 'upload-tag')
+
+    step = steps(resolve).fetch(0)
+    assert_equal 'resolve', step['id']
+    assert_equal '${{ inputs.source-ref }}', step.dig('env', 'SOURCE_REF')
+    assert_equal '${{ inputs.upload-tag }}', step.dig('env', 'UPLOAD_TAG')
+    assert_equal 'rustdesk/rustdesk', step.dig('env', 'SOURCE_REPOSITORY')
+
+    script = step['run'].to_s
+    assert_match(%r{api\.github\.com/repos/\$SOURCE_REPOSITORY/releases/latest}, script)
+    assert_match(/No stable release found/, script)
   end
 
   def test_generate_sbom_has_upload_and_one_bounded_retry_with_identical_release_inputs
