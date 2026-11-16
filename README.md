@@ -15,7 +15,7 @@
 ```text
 运行 Flutter Tag Build
         ↓
-解析 source-ref：留空时取上游最新正式版 tag（upload-tag 留空时同用该 tag）
+解析 source-ref 与 upload-tag：值为 Latest 时取上游最新正式版 tag（如 1.5.3）
         ↓
 按 source-ref checkout rustdesk/rustdesk
         ↓
@@ -36,10 +36,10 @@ inspect-source 只读预检：读取 Cargo 版本、vcpkg baseline、源码 SHA 
 
 ## 源码预检与能力边界
 
-- `source-ref` 决定使用上游的 branch、tag 或 commit；留空时自动使用上游最新正式版 tag。预检从该 checkout 的 `Cargo.toml` 读取版本，并从 `vcpkg.json` 读取 vcpkg baseline；工作流不再固定版本号。
+- `source-ref` 决定使用上游的 branch、tag 或 commit；默认值为 `refs/tags/Latest`，运行时解析为上游最新正式版 tag（如 `refs/tags/1.5.3`）。预检从该 checkout 的 `Cargo.toml` 读取版本，并从 `vcpkg.json` 读取 vcpkg baseline；工作流不再固定版本号。
 - 预检得到的源码 SHA 会传给所有平台，确保同一次构建使用同一份源码。
 - 旧 tag 如果没有 DRM 或 MSI template 能力，只跳过对应变体；普通 MSI 构建不受影响。
-- Flutter 构建入口使用 `upload-tag` 作为发布时的 tag；留空时使用解析到的正式版 tag。`upload-artifact=true` 且 `publish-release=false` 会执行完整打包并上传 Actions 制品，但不会写入 Release；两个选项都为 `true` 时保持正常发布行为。
+- Flutter 构建入口使用 `upload-tag` 作为发布时的 tag；默认值为 `Latest`，运行时解析为上游最新正式版本号（如 `1.5.3`）。`upload-artifact=true` 且 `publish-release=false` 会执行完整打包并上传 Actions 制品，但不会写入 Release；两个选项都为 `true` 时保持正常发布行为。
 - 发布到 GitHub Releases 的构建默认创建正式版；是否发布仍由 `publish-release` 控制，`upload-tag` 只决定 Release 标签名。
 
 ## GitHub Repository secrets
@@ -73,16 +73,18 @@ inspect-source 只读预检：读取 Cargo 版本、vcpkg baseline、源码 SHA 
 
 进入 **Actions → Flutter Tag Build → Run workflow**。
 
-`source-ref` 留空时，工作流会自动解析上游 `rustdesk/rustdesk` 的最新正式版 tag（如 `1.5.3`）并按该 tag 构建；显式填写 branch、tag 或 commit 时，按填写内容构建。`upload-tag` 留空时，Release 标签默认使用解析到的正式版 tag；解析不到时（如显式指定了 `source-ref`）回退为 `nightly`。
+`source-ref` 和 `upload-tag` 的默认值都是 `Latest`：运行时会调用上游 `rustdesk/rustdesk` 的最新正式 Release（自动排除 prerelease 和 draft），把 `source-ref` 解析为对应 tag（如 `refs/tags/1.5.3`）、`upload-tag` 解析为同一版本号（如 `1.5.3`）。直接点 **Run workflow**、不修改任何输入，即可构建并发布上游最新正式版；解析结果会写入运行的 Summary。
+
+`Latest` 也可以写成 `latest` 或 `refs/tags/Latest`。任一项显式填写 branch、tag、commit 或自定义 Release 标签时，按填写内容执行（例如 `source-ref` 填 `refs/heads/master`、`upload-tag` 仍留 `Latest`，则构建 master、发布为上游最新正式版本号）。
 
 ### 构建上游最新正式版（默认）
 
 ```text
 Workflow branch: main
-source-ref: （留空）
+source-ref: refs/tags/Latest
 upload-artifact: true
 publish-release: true
-upload-tag: （留空，发布为解析到的正式版，如 1.5.3）
+upload-tag: Latest
 ```
 
 ### 构建同步后的 master/nightly
