@@ -23,7 +23,7 @@
         ↓
 按 source-ref checkout rustdesk/rustdesk
         ↓
-inspect-source 只读预检：读取 Cargo 版本、vcpkg baseline、源码 SHA 和构建能力
+inspect-source 预检：读取 Cargo 版本、vcpkg baseline、源码 SHA 和构建能力，并在需要发布时预创建 Release
         ↓
 所有平台按同一个源码 SHA checkout
         ↓
@@ -43,11 +43,11 @@ inspect-source 只读预检：读取 Cargo 版本、vcpkg baseline、源码 SHA 
 ## 源码预检与能力边界
 
 - `source-ref` 决定使用上游的 branch、tag 或 commit；默认值为 `refs/tags/Latest`，运行时解析为上游最新正式版 tag（如 `refs/tags/1.5.3`）。
+- `upload-tag` 决定发布时的 Release 标签名；默认值为 `Latest`，运行时解析为上游最新正式版本号（如 `1.5.3`）。发布始终创建正式版，是否写入 Release 由 `publish-release` 控制。
 - `inspect-source` 预检从该 checkout 的 `Cargo.toml` 读取版本，并从 `vcpkg.json` 读取 vcpkg baseline；工作流不再固定版本号。
 - 预检得到的源码 SHA 会传给所有平台，确保同一次构建使用同一份源码。
 - 旧 tag 如果没有 DRM 或 MSI template 能力，只跳过对应变体；普通 MSI 构建不受影响。
-- Flutter 构建入口使用 `upload-tag` 作为发布时的 tag；默认值为 `Latest`，运行时解析为上游最新正式版本号（如 `1.5.3`）。`upload-artifact=true` 且 `publish-release=false` 会执行完整打包并上传 Actions 制品，但不会写入 Release；两个选项都为 `true` 时保持正常发布行为。
-- 发布到 GitHub Releases 的构建默认创建正式版；是否发布仍由 `publish-release` 控制，`upload-tag` 只决定 Release 标签名。
+- `upload-artifact=true` 且 `publish-release=false` 会执行完整打包并上传 Actions 制品，但不会写入 Release；两个选项都为 `true` 时保持正常发布行为。
 
 ## 仓库 Secrets 配置
 
@@ -62,7 +62,7 @@ inspect-source 只读预检：读取 Cargo 版本、vcpkg baseline、源码 SHA 
 
 这些值通过 Repository secrets 传入构建流程，不会写入 `main` 源码；固定密码会写入最终客户端，请仅在确有需要时配置。
 
-签名与公证相关的 secrets（`ANDROID_SIGNING_KEY`、`MACOS_P12_BASE64`、`SIGN_BASE_URL`、`SIGN_SECRET_KEY` 等）为可选：未配置时工作流会跳过对应签名步骤，仍可完成构建。
+签名与公证相关的 secrets（`ANDROID_SIGNING_KEY`、`MACOS_P12_BASE64`、`SIGN_BASE_URL`、`SIGN_SECRET_KEY` 等）为可选：未配置时工作流会跳过对应签名步骤，仍可完成构建；Android 的签名 APK 制品仅在配置 `ANDROID_SIGNING_KEY` 时上传。
 
 ## 仓库 Variables 配置
 
@@ -81,9 +81,11 @@ inspect-source 只读预检：读取 Cargo 版本、vcpkg baseline、源码 SHA 
 
 进入 **Actions → Flutter Tag Build → Run workflow**（`Workflow branch` 选 `main`）。
 
-`source-ref` 和 `upload-tag` 的默认值都是 `Latest`：运行时会调用上游 `rustdesk/rustdesk` 的最新正式 Release（自动排除 prerelease 和 draft），把 `source-ref` 解析为对应 tag（如 `refs/tags/1.5.3`）、`upload-tag` 解析为同一版本号（如 `1.5.3`）。直接点 **Run workflow**、不修改任何输入，即可构建并发布上游最新正式版；解析结果会写入运行的 Summary。
+`source-ref` 默认 `refs/tags/Latest`、`upload-tag` 默认 `Latest`：运行时会调用上游 `rustdesk/rustdesk` 的最新正式 Release（自动排除 prerelease 和 draft），把 `source-ref` 解析为对应 tag（如 `refs/tags/1.5.3`）、`upload-tag` 解析为同一版本号（如 `1.5.3`）。直接点 **Run workflow**、不修改任何输入，即可构建并发布上游最新正式版；解析结果会写入运行的 Summary。解析失败（上游没有正式 Release 或 API 不可用）时工作流直接报错终止，不会回退到其他分支或标签。
 
-`Latest` 也可以写成 `latest` 或 `refs/tags/Latest`。任一项显式填写 branch、tag、commit 或自定义 Release 标签时，按填写内容执行（例如 `source-ref` 填 `refs/heads/master`、`upload-tag` 仍留 `Latest`，则构建 master、发布为上游最新正式版本号）。
+`source-ref` 可写 `Latest`、`latest`、`refs/tags/Latest`、`refs/tags/latest`；`upload-tag` 只接受 `Latest` 或 `latest`。任一项显式填写 branch、tag、commit 或自定义 Release 标签时，按填写内容执行（例如 `source-ref` 填 `refs/heads/master`、`upload-tag` 仍留 `Latest`，则构建 master、发布为上游最新正式版本号）。
+
+除手动触发外，向本仓库推送符合 `v1.5.3` / `1.5.3` 模式的 tag 也会触发构建：此时 `source-ref` 取该 tag 的完整 ref、`upload-tag` 取 tag 名，并强制上传制品与发布 Release，不解析 `Latest`。
 
 常用组合：
 
