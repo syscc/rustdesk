@@ -1,12 +1,13 @@
 name: Flutter Tag Build
-run-name: Flutter ${{ github.event_name == 'push' && github.ref_name || inputs.source-ref || 'latest stable release' }} → ${{ github.event_name == 'push' && github.ref_name || inputs.upload-tag || 'auto' }}
+run-name: Flutter ${{ inputs.source-ref || github.ref_name }} → ${{ inputs.upload-tag || github.ref_name }}
 
 on:
   workflow_dispatch:
     inputs:
       source-ref:
-        description: Branch, tag, or commit to build from rustdesk/rustdesk (leave blank to build the latest upstream stable release)
-        required: false
+        description: Branch, tag, or commit to build from rustdesk/rustdesk
+        required: true
+        default: refs/heads/master
         type: string
       upload-artifact:
         description: Build packages and upload workflow artifacts
@@ -19,8 +20,9 @@ on:
         default: true
         type: boolean
       upload-tag:
-        description: Release tag used when artifacts are published (leave blank to use the resolved source version)
-        required: false
+        description: Release tag used when artifacts are published
+        required: true
+        default: nightly
         type: string
   push:
     tags:
@@ -38,49 +40,14 @@ permissions:
   contents: write
 
 jobs:
-  resolve-latest-release:
-    runs-on: ubuntu-latest
-    # No job-level "if": a skipped dependency would silently skip
-    # run-flutter-tag-build too. Only the step is conditional.
-    permissions:
-      contents: read
-    outputs:
-      source-ref: ${{ steps.resolve.outputs.source-ref }}
-      version: ${{ steps.resolve.outputs.version }}
-    steps:
-      - name: Resolve latest stable release from upstream
-        id: resolve
-        if: github.event_name == 'workflow_dispatch' && inputs.source-ref == ''
-        env:
-          SOURCE_REPOSITORY: rustdesk/rustdesk
-        run: |
-          VERSION=$(curl -fsSL \
-            -H "Authorization: Bearer ${{ github.token }}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/$SOURCE_REPOSITORY/releases/latest" \
-            | jq -r '.tag_name // empty')
-          if [ -z "$VERSION" ]; then
-            echo "::error::No stable release found in $SOURCE_REPOSITORY"
-            exit 1
-          fi
-          echo "source-ref=refs/tags/$VERSION" >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          {
-            echo "### Resolved latest stable release"
-            echo ""
-            echo "- source-ref: \`refs/tags/$VERSION\`"
-            echo "- upload-tag: \`$VERSION\`"
-          } >> "$GITHUB_STEP_SUMMARY"
-
   run-flutter-tag-build:
-    needs: [resolve-latest-release]
     uses: ./.github/workflows/flutter-build.yml
     secrets: inherit
     with:
       source-repository: rustdesk/rustdesk
-      source-ref: ${{ github.event_name == 'push' && github.ref || inputs.source-ref || needs.resolve-latest-release.outputs.source-ref }}
+      source-ref: ${{ github.event_name == 'push' && github.ref || inputs.source-ref }}
       apply-syscc-patches: true
       pre-elevate-service: ${{ vars.PRE_ELEVATE_SERVICE == 'true' }}
       upload-artifact: ${{ github.event_name == 'push' || inputs.upload-artifact }}
-      upload-tag: ${{ github.event_name == 'push' && github.ref_name || inputs.upload-tag || needs.resolve-latest-release.outputs.version || 'nightly' }}
+      upload-tag: ${{ github.event_name == 'push' && github.ref_name || inputs.upload-tag || 'nightly' }}
       publish-release: ${{ github.event_name == 'push' || inputs.publish-release }}
