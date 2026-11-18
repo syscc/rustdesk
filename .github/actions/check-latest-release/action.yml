@@ -1,0 +1,45 @@
+name: Check Latest Release
+description: Compare the newest upstream stable release with the newest published local stable release and report whether the upstream version needs a sync build
+
+inputs:
+  upstream-repository:
+    description: Upstream repository whose newest stable release is the sync target
+    required: false
+    default: rustdesk/rustdesk
+  local-repository:
+    description: Repository whose published stable releases are compared against upstream
+    required: false
+    default: syscc/rustdesk
+
+outputs:
+  upstream-tag:
+    description: Upstream release tag exactly as published (for example 1.5.4 or v1.5.4)
+    value: ${{ steps.check.outputs.upstream-tag }}
+  upstream-version:
+    description: Upstream version with any leading v removed
+    value: ${{ steps.check.outputs.upstream-version }}
+  local-version:
+    description: Newest published local stable version, empty when none exists
+    value: ${{ steps.check.outputs.local-version }}
+  sync:
+    description: Whether the upstream version is newer than the published local version
+    value: ${{ steps.check.outputs.sync }}
+
+runs:
+  using: composite
+  steps:
+    - name: Compare upstream and local stable releases
+      id: check
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        set -euo pipefail
+
+        python_command="python3"
+        if ! command -v "$python_command" >/dev/null 2>&1; then
+          python_command="python"
+        fi
+        "$python_command" "$GITHUB_ACTION_PATH/check_latest_release.py" \
+          --upstream-repository "${{ inputs.upstream-repository }}" \
+          --local-repository "${{ inputs.local-repository }}"

@@ -1,0 +1,54 @@
+name: Sync Latest Upstream Stable Release
+
+on:
+  schedule:
+    - cron: '0 */12 * * *'
+  workflow_dispatch:
+
+# The reusable build workflow creates and updates the release with the caller
+# token, so a read-only workflow-level permission would silently drop the
+# publication this sync is meant to produce.
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-latest-upstream-release
+  cancel-in-progress: false
+
+jobs:
+  detect-upstream-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      upstream-tag: ${{ steps.check.outputs.upstream-tag }}
+      upstream-version: ${{ steps.check.outputs.upstream-version }}
+      local-version: ${{ steps.check.outputs.local-version }}
+      sync: ${{ steps.check.outputs.sync }}
+    steps:
+      - name: Compare upstream and local stable releases
+        id: check
+        uses: syscc/rustdesk/.github/actions/check-latest-release@main
+        with:
+          upstream-repository: rustdesk/rustdesk
+          local-repository: ${{ github.repository }}
+
+  build-upstream-latest:
+    needs: [detect-upstream-release]
+    if: ${{ needs.detect-upstream-release.outputs.sync == 'true' }}
+    # Shares the release group with flutter-tag.yml so a build publishing the
+    # same tag queues instead of uploading the same assets twice. Manual runs
+    # that keep the default upload-tag "Latest" use a different group.
+    concurrency:
+      group: flutter-release-${{ needs.detect-upstream-release.outputs.upstream-version }}
+      cancel-in-progress: false
+    uses: ./.github/workflows/flutter-build.yml
+    secrets: inherit
+    with:
+      source-repository: rustdesk/rustdesk
+      source-ref: refs/tags/${{ needs.detect-upstream-release.outputs.upstream-tag }}
+      apply-syscc-patches: true
+      pre-elevate-service: ${{ vars.PRE_ELEVATE_SERVICE == 'true' }}
+      upload-artifact: true
+      publish-release: true
+      upload-tag: ${{ needs.detect-upstream-release.outputs.upstream-version }}

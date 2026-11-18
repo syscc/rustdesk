@@ -7,6 +7,9 @@ class WorkflowContractTest < Minitest::Test
   ROOT = File.expand_path('../..', __dir__)
   BUILD_WORKFLOW = File.join(ROOT, '.github', 'workflows', 'flutter-build.yml')
   TAG_WORKFLOW = File.join(ROOT, '.github', 'workflows', 'flutter-tag.yml')
+  SYNC_WORKFLOW = File.join(ROOT, '.github', 'workflows', 'sync-latest.yml')
+  SYNC_RELEASE_ACTION = File.join(ROOT, '.github', 'actions', 'check-latest-release', 'action.yml')
+  SYNC_OUTPUT_KEYS = %w[upstream-tag upstream-version local-version sync]
   SOURCE_SHA_REF = '${{ needs.inspect-source.outputs.source-sha }}'
   RELEASE_ACTION = 'softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64'
 
@@ -420,7 +423,132 @@ class WorkflowContractTest < Minitest::Test
     assert_equal SOURCE_SHA_REF, bridge.dig('with', 'source-ref')
   end
 
+  # Upstream sync is the only unattended publisher in this repository.
+  def test_sync_workflow_runs_every_twelve_hours_and_stays_manually_triggerable
+    workflow = sync_workflow
+    assert_equal 'Sync Latest Upstream Stable Release', workflow.fetch('name')
+
+    events = event_config(workflow)
+    crons = Array(events.fetch('schedule')).map { |entry| entry.fetch('cron') }
+    assert_includes crons, '0 */12 * * *',
+                    'the */12 cron is the whole point: an upstream release must be picked up within half a day'
+    assert events.key?('workflow_dispatch'),
+           'workflow_dispatch must survive so a missed or failed sync can be replayed by hand'
+  end
+
+  def test_sync_workflow_grants_write_contents_so_the_reusable_build_can_publish
+    assert_equal 'write', sync_workflow.dig('permissions', 'contents'),
+                 'flutter-build.yml creates and updates the release with the caller token, so a read-only ' \
+                 'workflow-level permission would silently drop the publication the sync just triggered'
+  end
+
+  def test_sync_concurrency_serializes_runs_without_cancelling_an_in_flight_build
+    concurrency = sync_workflow.fetch('concurrency')
+    assert_equal 'sync-latest-upstream-release', concurrency.fetch('group'),
+                 'one fixed group keeps two scheduled syncs from racing for the same release tag'
+    assert_equal false, concurrency.fetch('cancel-in-progress'),
+                 'cancelling would abort a release build that may already own the tag and its assets'
+  end
+
+  def test_detect_job_reads_upstream_and_publishes_exactly_the_four_sync_facts
+    detect = sync_jobs.fetch('detect-upstream-release')
+    assert_equal 'read', detect.dig('permissions', 'contents'),
+                 'detection only compares versions; write access belongs to the job that actually publishes'
+
+    expected_outputs = {
+      'upstream-tag' => '${{ steps.check.outputs.upstream-tag }}',
+      'upstream-version' => '${{ steps.check.outputs.upstream-version }}',
+      'local-version' => '${{ steps.check.outputs.local-version }}',
+      'sync' => '${{ steps.check.outputs.sync }}'
+    }
+    assert_equal expected_outputs, detect.fetch('outputs'),
+                 'these four outputs are the only evidence the build job sees; dropping or renaming one ' \
+                 'would let the build run without knowing what to sync'
+
+    check = steps(detect).find { |step| step['id'] == 'check' }
+    refute_nil check, 'the detection step must keep id check, otherwise every output above resolves to empty'
+    assert_equal 'syscc/rustdesk/.github/actions/check-latest-release@main', check['uses']
+    assert_equal 'rustdesk/rustdesk', check.dig('with', 'upstream-repository'),
+                 'the upstream side of the comparison must be the official repository'
+    assert_equal '${{ github.repository }}', check.dig('with', 'local-repository'),
+                 'the local side must be the publishing repository, not a hardcoded fork'
+  end
+
+  # A rename on either side leaves needs.detect-upstream-release.outputs.sync
+  # empty, which makes the build guard false and silently disables every
+  # scheduled sync, so the two output name sets are a locked contract.
+  def test_sync_release_action_outputs_match_the_detect_job_consumed_outputs
+    action = YAML.load_file(SYNC_RELEASE_ACTION)
+    action_outputs = action.fetch('outputs')
+    assert_equal SYNC_OUTPUT_KEYS.sort, action_outputs.keys.sort,
+                 'check-latest-release must expose exactly the four outputs the sync workflow consumes'
+
+    consumed = sync_jobs.fetch('detect-upstream-release').fetch('outputs')
+    assert_equal SYNC_OUTPUT_KEYS.sort, consumed.keys.sort,
+                 'detect-upstream-release must publish exactly the four outputs the action exposes'
+
+    action_outputs.each do |name, output|
+      assert_equal "${{ steps.check.outputs.#{name} }}", output.fetch('value'),
+                   "check-latest-release must forward output #{name} from the check step unchanged"
+    end
+
+    check_step = action.fetch('runs').fetch('steps').find { |step| step['id'] == 'check' }
+    refute_nil check_step,
+               'every output above reads steps.check.outputs, so a renamed action step id would empty them all'
+  end
+
+  def test_build_job_serializes_with_builds_publishing_the_same_tag
+    concurrency = sync_jobs.fetch('build-upstream-latest').fetch('concurrency')
+    assert_equal 'flutter-release-${{ needs.detect-upstream-release.outputs.upstream-version }}',
+                 concurrency.fetch('group'),
+                 'the group must use the normalized version, which is the tag the build publishes; ' \
+                 'using the raw upstream tag would stop serializing when upstream prefixes a v'
+    assert_equal false, concurrency.fetch('cancel-in-progress'),
+                 'a queued sync must not cancel a build that already owns the release assets'
+  end
+
+  def test_build_job_runs_only_when_detection_reports_a_gap
+    build = sync_jobs.fetch('build-upstream-latest')
+    assert_equal ['detect-upstream-release'], needs_for(build)
+    assert_equal "${{ needs.detect-upstream-release.outputs.sync == 'true' }}", build['if'],
+                 'without this guard every 12-hour run would rebuild and republish the version already released'
+  end
+
+  def test_build_job_reuses_the_release_pipeline_with_upstream_source_and_normalized_version
+    build = sync_jobs.fetch('build-upstream-latest')
+    assert_equal './.github/workflows/flutter-build.yml', build['uses'],
+                 'a sync must go through the existing release pipeline instead of a second, divergent one'
+    assert_equal 'inherit', build['secrets'],
+                 'signing keys and server configuration can only reach the build through secrets inherit'
+
+    forwarded = build.fetch('with')
+    assert_equal 'rustdesk/rustdesk', forwarded['source-repository']
+    assert_equal 'refs/tags/${{ needs.detect-upstream-release.outputs.upstream-tag }}', forwarded['source-ref'],
+                 'the build must checkout the upstream release tag itself, as resolved by detection'
+    assert_equal '${{ needs.detect-upstream-release.outputs.upstream-version }}', forwarded['upload-tag'],
+                 'the published tag must be the normalized version so a leading v never leaks into the release name'
+    refute_match(/upstream-tag/, forwarded['upload-tag'].to_s,
+                 'reusing the raw upstream tag as the release tag would publish vX.Y.Z under the wrong name')
+    assert_equal true, forwarded['apply-syscc-patches'],
+                 'a synced release must still carry the syscc customizations'
+    assert_equal "${{ vars.PRE_ELEVATE_SERVICE == 'true' }}", forwarded['pre-elevate-service'],
+                 'the repository variable stays the single switch for the elevated service, as in flutter-tag.yml'
+    assert_equal true, forwarded['upload-artifact'],
+                 'a sync that uploads no artifacts would have nothing to publish'
+    assert_equal true, forwarded['publish-release'],
+                 'a detection-only sync leaves the gap it found open, so publishing must be on'
+  end
+
   private
+
+  # Loaded lazily so the existing workflow tests still run before this file lands.
+  def sync_workflow
+    @sync ||= YAML.load_file(SYNC_WORKFLOW)
+  end
+
+  def sync_jobs
+    sync_workflow.fetch('jobs')
+  end
 
   def event_config(workflow)
     workflow['on'] || workflow[true] || workflow.fetch('on')

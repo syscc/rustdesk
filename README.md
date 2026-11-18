@@ -40,6 +40,15 @@ inspect-source 预检：读取 Cargo 版本、vcpkg baseline、源码 SHA 和构
 
 指定 tag 时，主体代码来自该 tag；服务器域名、公钥以及启用的可选配置由 `main` 中的替换脚本在构建时注入。
 
+## 自动同步上游正式版
+
+`.github/workflows/sync-latest.yml` 每 12 小时检查一次上游 `rustdesk/rustdesk` 的最新正式 Release，并与本仓库已发布的正式 Release 比较：上游版本更高、或本仓库还没有带构建制品的正式 Release 时，自动以该上游 tag 调用 `flutter-build.yml` 完成一次完整构建并发布正式版；版本相同或本地更高时跳过，不触发构建。比较逻辑位于 `.github/actions/check-latest-release/`，只使用 Python 标准库，结果写入运行的 Summary。也可通过 **Actions → Sync Latest Upstream Stable Release → Run workflow** 手动触发一次检查。
+
+- **失败重试**：比较只把「带制品的正式 Release」视为已发布。若某次同步构建在任何制品上传前就失败（只留下预建的 Release），下个 12 小时周期会重试；若已上传制品（例如 SBOM 或部分平台包）之后失败，该版本会被视为已发布，不会自动重试，需要人工重跑该构建。
+- **并发排队**：定时同步与 `flutter-tag.yml` 的构建在**发布标签相同**时共用 `flutter-release-<tag>` 并发组、互不取消；用默认 `upload-tag`（`Latest`）的手动运行组名不同，不会被串行化。同步是否构建取决于检测时刻的结果，若排队期间人工构建已完成，同步仍可能对同一版本再跑一次构建。
+- **版本解析假设**：上游正式 Release 的 tag 必须是 `X.Y.Z` 或 `vX.Y.Z`；其它形状（如带日期或后缀）会直接报错终止，不会误触发构建。
+- **本地 Release 上限**：比较只读取本仓库前 100 个 Release，当前数量远低于该上限，不影响判定。
+
 ## 源码预检与能力边界
 
 - `source-ref` 决定使用上游的 branch、tag 或 commit；默认值为 `refs/tags/Latest`，运行时解析为上游最新正式版 tag（如 `refs/tags/1.5.3`）。
@@ -100,6 +109,8 @@ inspect-source 预检：读取 Cargo 版本、vcpkg baseline、源码 SHA 和构
 
 - 构建工作流：`.github/workflows/flutter-build.yml`
 - Tag 构建入口：`.github/workflows/flutter-tag.yml`
+- 自动同步工作流：`.github/workflows/sync-latest.yml`
+- 上游版本比较 action：`.github/actions/check-latest-release/action.yml`
 - Bridge 工作流：`.github/workflows/bridge.yml`
 - 构建时替换 action：`.github/actions/apply-overrides/action.yml`
 - 构建时替换脚本：`.github/actions/apply-overrides/apply.py`
