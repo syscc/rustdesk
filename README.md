@@ -68,7 +68,7 @@ inspect-source 预检：读取 Cargo 版本、vcpkg baseline、源码 SHA 和构
 | `SERVER_PUBLIC_KEY` | 是 | rendezvous 服务器公钥 |
 | `FIXED_PASSWORD` | 否 | 固定密码；为空时不写入固定密码配置 |
 | `API_SERVER` | 否 | API 服务器完整地址；为空时保留上游默认 API 地址 |
-| `PRE_ELEVATE_SERVICE` | 否 | 设为 `true`，启用 Windows portable 启动时自动请求提升便携服务权限；未配置、`false` 或误拼为 `ture` 时不启用 |
+| `PRE_ELEVATE_SERVICE` | 否 | 设为 `true`，启用 Windows portable 启动时自动请求提升便携服务权限；未配置或设为 `false` 时不启用 |
 
 这些值通过 Repository secrets 传入构建流程，不会写入 `main` 源码；固定密码会写入最终客户端，请仅在确有需要时配置。
 
