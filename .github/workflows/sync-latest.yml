@@ -48,7 +48,6 @@ jobs:
       source-repository: rustdesk/rustdesk
       source-ref: refs/tags/${{ needs.detect-upstream-release.outputs.upstream-tag }}
       apply-syscc-patches: true
-      pre-elevate-service: ${{ vars.PRE_ELEVATE_SERVICE == 'true' }}
       upload-artifact: true
       publish-release: true
       upload-tag: ${{ needs.detect-upstream-release.outputs.upstream-version }}

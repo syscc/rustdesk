@@ -386,27 +386,46 @@ class WorkflowContractTest < Minitest::Test
     end
   end
 
-  def test_pre_elevate_service_is_opt_in_and_only_forwarded_to_windows_builds
+  def test_pre_elevate_service_is_opt_in_and_resolved_only_in_windows_prepare_steps
     input = 'pre-elevate-service'
-    build_input = event_config(@build).fetch('workflow_call').fetch('inputs').fetch(input)
+    build_call = event_config(@build).fetch('workflow_call')
+    build_input = build_call.fetch('inputs').fetch(input)
     assert_equal 'boolean', build_input.fetch('type')
     assert_equal false, build_input.fetch('default')
+    refute build_call.fetch('secrets', {}).key?('PRE_ELEVATE_SERVICE'),
+           'the switch must use inherited secrets without an extra declaration'
     refute event_config(@tag).fetch('workflow_dispatch').fetch('inputs').key?(input),
-           'the repository variable must replace the manual checkbox'
-    assert_equal "${{ vars.PRE_ELEVATE_SERVICE == 'true' }}",
-                 @tag_jobs.fetch('run-flutter-tag-build').dig('with', input)
+           'the repository secret must replace the manual checkbox'
+
+    {
+      TAG_WORKFLOW => @tag_jobs.fetch('run-flutter-tag-build'),
+      SYNC_WORKFLOW => sync_jobs.fetch('build-upstream-latest')
+    }.each do |path, job|
+      assert_equal 'inherit', job.fetch('secrets')
+      refute job.fetch('with').key?(input), 'entrypoints must not forward the repository variable'
+      refute_match(/vars\.PRE_ELEVATE_SERVICE/, File.read(path))
+      refute_match(/secrets\./, job.fetch('with').to_s,
+                   'secrets are not available in reusable workflow call inputs')
+    end
 
     consumers = @build_jobs.select do |_name, job|
       steps(job).any? { |step| step.fetch('with', {}).key?(input) }
     end
     assert_equal %w[build-for-windows-flutter build-for-windows-sciter], consumers.keys
     consumers.each do |name, job|
-      prepare = steps(job).find { |step| step.fetch('with', {}).key?(input) }
+      prepares = steps(job).select { |step| step.fetch('with', {}).key?(input) }
+      assert_equal 1, prepares.length, "#{name} must resolve the switch in exactly one step"
+      prepare = prepares.first
+      assert_equal 'Prepare syscc build source', prepare.fetch('name')
       assert_equal 'syscc/rustdesk/.github/actions/apply-overrides@main', prepare.fetch('uses')
-      assert_equal '${{ inputs.pre-elevate-service }}', prepare.dig('with', input)
+      assert_equal "${{ inputs.pre-elevate-service || secrets.PRE_ELEVATE_SERVICE == 'true' }}",
+                   prepare.dig('with', input),
+                   'explicit true must enable independently; unset or misspelled secrets must not enable'
       assert_operator steps(job).index(prepare), :<, steps(job).index { |step| step['name'] == 'Build rustdesk' },
                       "#{name} must apply the default before compilation"
     end
+    assert_equal 2, File.read(BUILD_WORKFLOW).scan(/secrets\.PRE_ELEVATE_SERVICE/).length,
+                 'only the two Windows prepare steps may read the secret, never pass or print its raw value'
 
     action = YAML.load_file(File.join(ROOT, '.github', 'actions', 'apply-overrides', 'action.yml'))
     assert_equal 'false', action.dig('inputs', input, 'default')
@@ -531,8 +550,6 @@ class WorkflowContractTest < Minitest::Test
                  'reusing the raw upstream tag as the release tag would publish vX.Y.Z under the wrong name')
     assert_equal true, forwarded['apply-syscc-patches'],
                  'a synced release must still carry the syscc customizations'
-    assert_equal "${{ vars.PRE_ELEVATE_SERVICE == 'true' }}", forwarded['pre-elevate-service'],
-                 'the repository variable stays the single switch for the elevated service, as in flutter-tag.yml'
     assert_equal true, forwarded['upload-artifact'],
                  'a sync that uploads no artifacts would have nothing to publish'
     assert_equal true, forwarded['publish-release'],
